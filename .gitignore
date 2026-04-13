@@ -31,3 +31,6 @@ protocol/saplinghtml/
 protocol/heartwood.pdf
 protocol/protocol.ver
 *~
+
+# mdbook build output
+book/
