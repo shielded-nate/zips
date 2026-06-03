@@ -235,6 +235,7 @@ be deleted.
     <tr> <td class="left">draft-ecc-authenticated-reply-addrs</td> <td class="left"><a href="zips/draft-ecc-authenticated-reply-addrs.md">Authenticated Reply Addresses</a></td> <td class="left"><a href="https://github.com/zcash/zips/issues/1230">zips#1230</a></td>
     <tr> <td class="left">draft-ecc-onchain-accountable-voting</td> <td class="left"><a href="zips/draft-ecc-onchain-accountable-voting.md">On-chain Accountable Voting</a></td> <td class="left"></td>
     <tr> <td class="left">draft-shieldedlabs-crosslink-construction</td> <td class="left"><a href="zips/draft-shieldedlabs-crosslink-construction.rst">CCC-SL: Crosslink Consensus Construction from Shielded Labs</a></td> <td class="left"></td>
+    <tr> <td class="left">draft-shieldedlabs-crosslink-ledger-state</td> <td class="left"><a href="zips/draft-shieldedlabs-crosslink-ledger-state.rst">RSM-SL-v1: Crosslink Ledger State from Shielded Labs</a></td> <td class="left"></td>
     <tr> <td class="left">draft-shieldedlabs-crosslink-overview</td> <td class="left"><a href="zips/draft-shieldedlabs-crosslink-overview.rst">Shielded Labs Crosslink v1: Protocol Overview and Architecture</a></td> <td class="left"></td>
     <tr> <td class="left">draft-str4d-orchard-balance-proof</td> <td class="left"><a href="zips/draft-str4d-orchard-balance-proof.md">Air drops, Proof-of-Balance, and Stake-weighted Polling</a></td> <td class="left"><a href="https://github.com/zcash/zips/issues/1229">zips#1229</a></td>
   </table></embed>
