@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
     dprint-markdown-plugin = {
-      url = "https://plugins.dprint.dev/markdown-0.19.0.wasm";
+      url = "path:./tools/dprint/markdown-0.19.0.wasm";
       flake = false;
     };
   };
