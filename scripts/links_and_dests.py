@@ -89,7 +89,7 @@ def get_links_and_destinations_from_html(f):
 
 def main(args):
     if len(args) < 2:
-        print("Usage: ./links_and_dests.py [--check] [--print-dests] <file.pdf|html|xhtml>")
+        print("Usage: ./scripts/links_and_dests.py [--check] [--print-dests] <file.pdf|html|xhtml>")
         return 1
 
     check = '--check' in args[1:]
