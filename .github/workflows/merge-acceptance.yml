@@ -1,0 +1,24 @@
+name: Merge Acceptance
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  merge-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v14
+
+      - name: Full render via nix build
+        run: nix build
+
+      - name: Check markdown formatting
+        run: ./scripts/format.sh check

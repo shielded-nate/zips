@@ -1,8 +1,8 @@
 #!/bin/sh
 
 if ! ( ( [ "x$1" = "x--rst" ] && [ $# -eq 2 ] ) || ( [ "x$1" = "x--md" ] && [ $# -eq 3 ] ) ); then
-    echo "Usage: edithtml.sh --rst <htmlfile>"
-    echo "   or: edithtml.sh --md <htmlfile> <title>"
+    echo "Usage: scripts/edithtml.sh --rst <htmlfile>"
+    echo "   or: scripts/edithtml.sh --md <htmlfile> <title>"
     exit
 fi
 

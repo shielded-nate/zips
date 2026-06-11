@@ -1,4 +1,3 @@
-
     ZIP: Unassigned {numbers are assigned by ZIP editors}
     Title: {Something Short and To the Point}
     Owners: First Owner <email>
@@ -11,7 +10,6 @@
     License: {usually MIT}
     Pull-Request: <https://github.com/zcash/zips/pull/???>
 
-
 # Don't Panic
 
 If this is your first time writing a ZIP, the structure and format may look
@@ -21,7 +19,6 @@ gets ideas across, even if it doesn't quite follow this format. The community
 and ZIP editors will help you figure things out and get it into shape later.
 
 {Delete this section.}
-
 
 # Terminology
 
@@ -48,7 +45,6 @@ The terms below are to be interpreted as follows:
 
 : {Definition.}
 
-
 # Abstract
 
 {Describe what this proposal does, typically in a few paragraphs.
@@ -56,8 +52,7 @@ The terms below are to be interpreted as follows:
 The Abstract should only provide a summary of the ZIP; the ZIP should remain
 complete without the Abstract.
 
-Use links where applicable, e.g. [^protocol] [^protocol-introduction].}
-
+Use links where applicable, e.g. [^protocol][^protocol-introduction].}
 
 # Motivation
 
@@ -69,10 +64,9 @@ don't put conformance requirements in this section.
 
 Explain the status quo, why the status quo is in need of improvement,
 and if applicable, the history of how this area has changed. Then describe
-*at a high level* why this proposed solution addresses the perceived issues.
+_at a high level_ why this proposed solution addresses the perceived issues.
 It is ok if this is somewhat redundant with the abstract, but here you can
 go into a lot more detail.}
-
 
 # Requirements
 
@@ -81,20 +75,18 @@ paragraph for each constraint or goal. Again, don't actually specify anything
 here; this section is primarily for use as a consistency check that what is
 specified meets the requirements.}
 
-
 # Non-requirements
 
 {This section is entirely optional. If it is present, it describes issues that
-the proposal is *not* attempting to address, that someone might otherwise think
+the proposal is _not_ attempting to address, that someone might otherwise think
 it does or should.}
-
 
 # Specification
 
 {Replace this entire section.}
 
 The Specification section describes what should change, using precise language and
-conformance key words. Anything that is *required in order to implement the ZIP*
+conformance key words. Anything that is _required in order to implement the ZIP_
 (or follow its process, in the case of a Process ZIP) should be in this section.
 
 Avoid overspecification! Also avoid underspecification. Specification is hard.
@@ -116,7 +108,7 @@ At least while the ZIP is in Draft, we encourage writing open questions and TODO
 
 ### Open questions
 
-* What happens if a full validator can't parse the fandangle as a doohicky?
+- What happens if a full validator can't parse the fandangle as a doohicky?
 
 TODO: define byte encoding for the Jabberwock.
 
@@ -128,16 +120,16 @@ Zcash-related process [^zip-0000].
 
 ZIPs are different from RFCs in the following ways:
 
-* Many (but not all) ZIPs are "living documents"; they are updated in-place as
+- Many (but not all) ZIPs are "living documents"; they are updated in-place as
   the relevant areas of the protocol or process change. Unlike in the RFC process,
-  making a change in an area described by a published ZIP does not *necessarily*
+  making a change in an area described by a published ZIP does not _necessarily_
   require creating a new ZIP, although that is an option if the change is extensive
   enough to warrant it.
-* The expected structure of a ZIP is more constrained than an RFC. For example,
+- The expected structure of a ZIP is more constrained than an RFC. For example,
   the Specification section is REQUIRED, and all of the conformance requirements
   MUST go in that section. The ZIP editors will help you to ensure that things
   go in the right sections.
-* Security considerations SHOULD be spread throughout the text, in the places
+- Security considerations SHOULD be spread throughout the text, in the places
   where they are most relevant.
 
 ## Using mathematical notation
@@ -155,7 +147,7 @@ ZIP editors will catch any inconsistencies in review.
 
 :::info
 "`.. note::`" in reStructuredText, or "`:::info`" (terminated by
-"``:::``") in Markdown, can be used for an aside from the main text.
+"`:::`") in Markdown, can be used for an aside from the main text.
 
 The rendering of notes is colourful and may be distracting, so they should
 only be used for important points.
@@ -194,11 +186,13 @@ that reference is "`[#snark]_`" in reStructuredText, or "`[^snark]`" in Markdown
 
 The corresponding entry in the [References] section should look like this in
 reStructuredText:
+
 ```rst
 .. [#snark] `The Hunting of the Snark <https://www.gutenberg.org/files/29888/29888-h/29888-h.htm>_. Lewis Carroll, with illustrations by Henry Holiday. MacMillan and Co. London. March 29, 1876.
 ```
 
 or like this in Markdown::
+
 ```markdown
 [^snark] [The Hunting of the Snark](https://www.gutenberg.org/files/29888/29888-h/29888-h.htm). Lewis Carroll, with illustrations by Henry Holiday. MacMillan and Co. London. March 29, 1876.
 ```
@@ -207,17 +201,21 @@ Note that each entry must be on a single line regardless of how long that makes 
 line. In Markdown there must be a blank line between entries.
 
 The current rendering of a Markdown ZIP reorders the references according to
-their first use; the rendering of a reStructuredText ZIP  keeps them in the same 
+their first use; the rendering of a reStructuredText ZIP keeps them in the same
 order as in the References section.
 
 To link to another section of the same ZIP, use
+
 ```rst
 `Section title`_
 ```
+
 in reStructuredText, or
+
 ```markdown
 [Section title]
 ```
+
 in Markdown.
 
 ### Citing the Zcash protocol specification
@@ -231,12 +229,10 @@ even though the link will point to the most recent stable version.
 
 Do not include the "`https://zips.z.cash/`" part of URLs to ZIPs or the protocol spec.
 
-
 # Reference implementation
 
 {This section is entirely optional; if present, it usually gives links to zcashd or
 zebrad PRs.}
-
 
 # References
 

@@ -1,6 +1,6 @@
 # Dependencies: see zip-guide.rst and protocol/README.rst
 
-.PHONY: all-zips all tag-release protocol all-protocol discard
+.PHONY: all-zips all all-specs tag-release protocol all-protocol discard
 all-zips: .Makefile.uptodate
 	echo "$(patsubst zips/%,%,$(sort $(wildcard zips/zip-*.rst) $(wildcard zips/zip-*.md)))" >.zipfilelist.new
 	diff .zipfilelist.current .zipfilelist.new || cp -f .zipfilelist.new .zipfilelist.current
@@ -12,6 +12,8 @@ all-zips: .Makefile.uptodate
 	$(MAKE) rendered/index.html $(addprefix rendered/,$(addsuffix .html,$(basename $(patsubst zips/%,%,$(sort $(wildcard zips/*.rst) $(wildcard zips/*.md))))))
 
 all: all-zips all-protocol
+
+all-specs: all-protocol
 
 tag-release:
 	$(MAKE) -C protocol tag-release
@@ -25,37 +27,37 @@ all-protocol:
 discard:
 	git checkout -- 'rendered/*.html' 'README.rst' 'rendered/protocol/*.pdf'
 
-.Makefile.uptodate: Makefile edithtml.sh
+.Makefile.uptodate: Makefile scripts/edithtml.sh
 	$(MAKE) clean
 	touch .Makefile.uptodate
 
 define PROCESSRST
 $(eval TITLE := $(shell echo '$(patsubst zips/%,%,$(basename $<))' | sed -E 's|zip-0{0,3}|ZIP |;s|draft-|Draft |')$(shell grep -E '^(\.\.)?\s*Title: ' $< |sed -E 's|.*Title||'))
 rst2html5 -v --title="$(TITLE)" $< >$@
-./edithtml.sh --rst $@
+./scripts/edithtml.sh --rst $@
 endef
 
 define PROCESSMD
 $(eval TITLE := $(shell echo '$(patsubst zips/%,%,$(basename $<))' | sed -E 's|zip-0{0,3}|ZIP |;s|draft-|Draft |')$(shell grep -E '^(\.\.)?\s*Title: ' $< |sed -E 's|.*Title||'))
 pandoc --from=markdown --to=html $< --output=$@
-./edithtml.sh --md $@ "${TITLE}"
+./scripts/edithtml.sh --md $@ "${TITLE}"
 endef
 
-rendered/index.html: README.rst edithtml.sh
+rendered/index.html: README.rst scripts/edithtml.sh
 	$(PROCESSRST)
 
-rendered/%.html: zips/%.rst edithtml.sh
+rendered/%.html: zips/%.rst scripts/edithtml.sh
 	$(PROCESSRST)
 
-rendered/%.html: zips/%.md edithtml.sh
+rendered/%.html: zips/%.md scripts/edithtml.sh
 	$(PROCESSMD)
 
-README.rst: .zipfilelist.current .draftfilelist.current makeindex.sh README.template $(wildcard zips/zip-*.rst) $(wildcard zips/zip-*.md) $(wildcard zips/draft-*.rst) $(wildcard zips/draft-*.md)
-	./makeindex.sh | cat README.template - >README.rst
+README.rst: .zipfilelist.current .draftfilelist.current scripts/makeindex.sh README.template $(wildcard zips/zip-*.rst) $(wildcard zips/zip-*.md) $(wildcard zips/draft-*.rst) $(wildcard zips/draft-*.md)
+	./scripts/makeindex.sh | cat README.template - >README.rst
 
 .PHONY: linkcheck clean all-clean
 linkcheck: all
-	./links_and_dests.py --check $(filter-out $(wildcard rendered/draft-*.html),$(wildcard rendered/*.html)) $(filter-out rendered/protocol/sprout.pdf,$(wildcard rendered/protocol/*.pdf))
+	./scripts/links_and_dests.py --check $(filter-out $(wildcard rendered/draft-*.html),$(wildcard rendered/*.html)) $(filter-out rendered/protocol/sprout.pdf,$(wildcard rendered/protocol/*.pdf))
 
 clean:
 	rm -f .zipfilelist.* README.rst rendered/index.html $(addprefix rendered/,$(addsuffix .html,$(basename $(patsubst zips/%,%,$(sort $(wildcard zips/*.rst) $(wildcard zips/*.md))))))

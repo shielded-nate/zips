@@ -2,6 +2,11 @@ name: Render ZIPs and Zcash Protocol Specification
 description: GitHub Action to compile ZIPs and Zcash Protocol Specification LaTeX documents
 author: Deirdre Connolly
 runs:
-  using: docker
-  # Runs `make all` or something like it
-  image: ../../../Dockerfile
+  using: composite
+  steps:
+    - name: Render with nix build
+      shell: bash
+      run: |
+        nix build
+        cp -a ./result/rendered/. ./rendered/
+        cp -a ./result/README.rst ./README.rst
