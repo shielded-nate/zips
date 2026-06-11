@@ -16,3 +16,6 @@ jobs:
 
       - name: Full render via nix build
         run: nix build
+
+      - name: Check markdown formatting
+        run: ./scripts/format.sh check

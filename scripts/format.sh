@@ -21,12 +21,20 @@ fi
 
 subcommand="$1"
 
+run_dprint() {
+  if command -v dprint >/dev/null 2>&1; then
+    dprint "$@"
+  else
+    npx --yes dprint@0.54.0 "$@"
+  fi
+}
+
 run_check() {
-  dprint check
+  run_dprint check
 }
 
 run_rewrite() {
-  dprint fmt
+  run_dprint fmt
 }
 
 case "$subcommand" in
