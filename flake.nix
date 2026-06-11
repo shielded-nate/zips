@@ -2,8 +2,8 @@
   description = "Build and develop the Zcash ZIPs repository";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
-    flake-utils.url = "github:numtide/flake-utils";
+    nixpkgs.url = "github:NixOS/nixpkgs/50ab793786d9de88ee30ec4e4c24fb4236fc2674";
+    flake-utils.url = "github:numtide/flake-utils/11707dc2f618dd54ca8739b309ec4fc024de578b";
     dprint-markdown-plugin = {
       url = "path:./tools/dprint/markdown-0.19.0.wasm";
       flake = false;
@@ -27,10 +27,8 @@
           gnused
           git
           python3
-          python3Packages.rst2html5
+          python3Packages.pip
           pandoc
-          biber
-          latexmk
           texlive.combined.scheme-full
         ];
 
@@ -49,6 +47,9 @@
               chmod -R u+w ./source
               cd ./source
               sed -i "s/git describe --tags --abbrev=6/echo ${revision}/g" protocol/Makefile
+              export PYTHONUSERBASE="$PWD/.python-user"
+              export PATH="$PYTHONUSERBASE/bin:$PATH"
+              python3 -m pip install --quiet --disable-pip-version-check --user rst2html5
               make ${target}
               runHook postBuild
             '';
@@ -94,6 +95,13 @@
         devShells.default = pkgs.mkShell {
           packages = commonInputs ++ [ pkgs.dprint ];
           DPRINT_MARKDOWN_PLUGIN = "${dprint-markdown-plugin}";
+          shellHook = ''
+            export PYTHONUSERBASE="$PWD/.python-user"
+            export PATH="$PYTHONUSERBASE/bin:$PATH"
+            if ! command -v rst2html5 >/dev/null 2>&1; then
+              python3 -m pip install --quiet --disable-pip-version-check --user rst2html5
+            fi
+          '';
         };
       });
 }
