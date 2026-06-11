@@ -1,6 +1,6 @@
 # Dependencies: see zip-guide.rst and protocol/README.rst
 
-.PHONY: all-zips all tag-release protocol all-protocol discard
+.PHONY: all-zips all all-specs tag-release protocol all-protocol discard
 all-zips: .Makefile.uptodate
 	echo "$(patsubst zips/%,%,$(sort $(wildcard zips/zip-*.rst) $(wildcard zips/zip-*.md)))" >.zipfilelist.new
 	diff .zipfilelist.current .zipfilelist.new || cp -f .zipfilelist.new .zipfilelist.current
@@ -12,6 +12,8 @@ all-zips: .Makefile.uptodate
 	$(MAKE) rendered/index.html $(addprefix rendered/,$(addsuffix .html,$(basename $(patsubst zips/%,%,$(sort $(wildcard zips/*.rst) $(wildcard zips/*.md))))))
 
 all: all-zips all-protocol
+
+all-specs: all-protocol
 
 tag-release:
 	$(MAKE) -C protocol tag-release
