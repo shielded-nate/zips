@@ -1,24 +1,27 @@
 # Calgary Design
 
 ## Motivation
+
 Calgary is a reimplementation of Zerocash in Bitcoin meant to address a number of shortcomings and design flaws in the original academic implementation. This gives us an opportunity to rework the implementation from scratch, setting out rigorous guidelines for how we interact with upstream code.
 
 ### Bridging implementation gaps
+
 The original implementation carried Protect and Pour operations through the transaction inputs. This required a number of hacks. Transaction inputs that carried Pours, for example, had no actual `CTxOut` to spend, so a dummy "always_spendable" transaction was created. The scripting system (opcodes in particular) had to be changed to store the zerocash operation metadata. Changes to support things like intermediate Pours or input value to the circuit had unclear interactions with the transaction system.
 
 The obvious advantage of the original implementation was avoiding structural changes to `CTransaction`. However, these are necessary, not least because versioning semantics must be laid out in a sensible way.
 
 ## Goals
-* We should take this opportunity to understand the implementation better, and build on top of a more recent version of Bitcoin. Upstream has made a number of changes to critical components and has begun to refactor consensus-critical code into a `libconsensus` library.
-* We should rigorously practice our [design policy](https://github.com/zcash/zcash/wiki/design/43500230370684f74c53366f4f8a5094dcb2951a). This includes avoiding changes to upstream's scripting system wherever possible, and only modifying structures with proper versioning plans.
-* We should strive to preserve the semantics of our private alpha implementation such that the `zc-raw-*` RPC commands still work properly.
+
+- We should take this opportunity to understand the implementation better, and build on top of a more recent version of Bitcoin. Upstream has made a number of changes to critical components and has begun to refactor consensus-critical code into a `libconsensus` library.
+- We should rigorously practice our [design policy](https://github.com/zcash/zcash/wiki/design/43500230370684f74c53366f4f8a5094dcb2951a). This includes avoiding changes to upstream's scripting system wherever possible, and only modifying structures with proper versioning plans.
+- We should strive to preserve the semantics of our private alpha implementation such that the `zc-raw-*` RPC commands still work properly.
 
 ## Scope
 
-* **Chained pours** ([#121][ticket121]) mean that we should anticipate multiple pours in a transaction, specifically because the pours may require commitments from previous pours.
-* **Symmetric pours** ([#338][ticket338]) mean that instead of separate Protect / Pour operations, a *single* Pour operation exists which takes a `vpub_in` and `vpub_out`, unifying the two operations. This requires a circuit change.
-* **Versioning semantics** ([#114][ticket114]) require us to avoid breaking upstream tests whenever possible. We need to anticipate both changes to our own structures after launch to support new features (such as circuit changes, see #152) and potential changes to upstream transaction structures we will eventually need to rebase on top of.
-* **Cryptographic binding of pours** ([#366][ticket366]) is necessary to ensure that (in the most common situation) it is not possible to move a pour from one transaction to another, or replace pours in a transaction without the authorization of its inputs.
+- **Chained pours** ([#121][ticket121]) mean that we should anticipate multiple pours in a transaction, specifically because the pours may require commitments from previous pours.
+- **Symmetric pours** ([#338][ticket338]) mean that instead of separate Protect / Pour operations, a _single_ Pour operation exists which takes a `vpub_in` and `vpub_out`, unifying the two operations. This requires a circuit change.
+- **Versioning semantics** ([#114][ticket114]) require us to avoid breaking upstream tests whenever possible. We need to anticipate both changes to our own structures after launch to support new features (such as circuit changes, see #152) and potential changes to upstream transaction structures we will eventually need to rebase on top of.
+- **Cryptographic binding of pours** ([#366][ticket366]) is necessary to ensure that (in the most common situation) it is not possible to move a pour from one transaction to another, or replace pours in a transaction without the authorization of its inputs.
 
 [ticket121]: https://github.com/zcash/zcash/issues/121
 [ticket338]: https://github.com/zcash/zcash/issues/338
@@ -63,7 +66,8 @@ The heart of zerocash modifications is in `CTransaction`. The current layout is 
 In this design, we will increment the latest `nVersion` for transactions, adding new fields to the end to encapsulate our zerocash operations ([#114][ticket114]). Our fields must anticipate the case that no zerocash operations occur, such as in traditional or "purely cleartext" transactions.
 
 ##### Alternative: Use bitflags to indicate the presence of zerocash fields
-In this alternative, we use bitflags in the `nVersion` field to indicate the presence of zerocash fields at the end. This would allow us to track upstream CTransaction changes seamlessly, *but* would indefinitely require that upstream `nVersion` bits are available to us for this purpose. Additionally, the absence of these bitflags would conflict in purpose with an empty vector of `PourTx` structures as outlined later.
+
+In this alternative, we use bitflags in the `nVersion` field to indicate the presence of zerocash fields at the end. This would allow us to track upstream CTransaction changes seamlessly, _but_ would indefinitely require that upstream `nVersion` bits are available to us for this purpose. Additionally, the absence of these bitflags would conflict in purpose with an empty vector of `PourTx` structures as outlined later.
 
 #### PourTx
 
@@ -90,17 +94,18 @@ The `CTransactionSignatureSerializer` (and perhaps other components) will need t
 
 Note that this general operation has both `vpub_in` and `vpub_out` which is a generalization from the academic prototype which has separate `Protect` (with public input) and `Pour` (with public output) operations ([#338][ticket338]).
 
-The `vin` and `vout` fields can be empty if there exist some well-formed `PourTx`s, *in contrast* to Bitcoin's invariants on these vectors.
+The `vin` and `vout` fields can be empty if there exist some well-formed `PourTx`s, _in contrast_ to Bitcoin's invariants on these vectors.
 
 ##### Chained Pour Validation
 
-Note that chained pours ([#121][ticket121]) require that witnesses in a `PourTx` after the first may refer to a treestate which is not an ancestor of the block tree state after the `CTransaction` containing it is mined. For example suppose transaction `A` appears prior to transaction `B` in the same block and that each contain two `PourTx`s, `A1`, `A2`, `B1`, and `B2`. Call the tree state of the block's ancestor `T_ancestor`, and the tree state of the latest block `T_block`. The state of `T_block` will be derived from applying on top of `T_ancestor` the commits from `A1`, `A2`, `B1`, and `B2` in that order. However, `B2` may spend an output of `B1`, and if it does so, it will refer to the tree state derived by applying on top of `T_ancestor` commitments from only `B1`. Notice that a *different* output of `B1` may be spent in a later block. In *that* case, this later spend would use a proof anchored in `T_block` or some valid subsequent tree state.
+Note that chained pours ([#121][ticket121]) require that witnesses in a `PourTx` after the first may refer to a treestate which is not an ancestor of the block tree state after the `CTransaction` containing it is mined. For example suppose transaction `A` appears prior to transaction `B` in the same block and that each contain two `PourTx`s, `A1`, `A2`, `B1`, and `B2`. Call the tree state of the block's ancestor `T_ancestor`, and the tree state of the latest block `T_block`. The state of `T_block` will be derived from applying on top of `T_ancestor` the commits from `A1`, `A2`, `B1`, and `B2` in that order. However, `B2` may spend an output of `B1`, and if it does so, it will refer to the tree state derived by applying on top of `T_ancestor` commitments from only `B1`. Notice that a _different_ output of `B1` may be spent in a later block. In _that_ case, this later spend would use a proof anchored in `T_block` or some valid subsequent tree state.
 
 ##### Script-based Signatures
 
 In the original academic implementation, an ephemeral ECDSA keypair is generated and used to sign the rest of the transaction, binding it to the Pour as the public key is provided as an input to the prover/verifier. We can reuse Bitcoin's scripting system to abstract this behavior further, allowing for more flexible binding behaviors between pours and the rest of the transaction. As an example of a future use of this flexibility, crowdfunding pours would be possible by allowing users to bind their pours to nothing else in the transaction.
 
 ##### Alternative: `SIGHASH_ALL` binding
+
 In this alternative, instead of using `CScript`s to offer flexible binding semantics to users, we force `SIGHASH_ALL`-style signature checking on the transaction. This is safer if we discover that scripts in this context have strange interactions that cannot be bridged, or that malleability issues are unavoidable.
 
 ### CBlock
@@ -121,12 +126,13 @@ Various parts of this design can be implemented concurrently and iteratively.
 4. `CTransaction` should be modified so that additional fields are supported.
 
 ### Stage 2: Concurrent tasks
+
 Each of the following tasks to complete the redesign can be done independently.
 
-* Add old RPC commands. ([#527][ticket527])
-* `CScript` scheme to enforce cryptographic binding of the transaction to the pour. ([#529][ticket529])
-* Chained pours which allow pours to reference merkle roots produced by other pours. ([#555][ticket555])
-* A zerocash-specific versioning field can be added, along with upstream interaction semantics. ([#114][ticket114])
+- Add old RPC commands. ([#527][ticket527])
+- `CScript` scheme to enforce cryptographic binding of the transaction to the pour. ([#529][ticket529])
+- Chained pours which allow pours to reference merkle roots produced by other pours. ([#555][ticket555])
+- A zerocash-specific versioning field can be added, along with upstream interaction semantics. ([#114][ticket114])
 
 [ticket527]: https://github.com/zcash/zcash/issues/527
 [ticket529]: https://github.com/zcash/zcash/issues/529
