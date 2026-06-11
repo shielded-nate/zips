@@ -4,9 +4,18 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
+    dprint-markdown-plugin = {
+      url = "https://plugins.dprint.dev/markdown-0.19.0.wasm";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+    dprint-markdown-plugin,
+  }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -63,7 +72,7 @@
 
           all-specs = mkMakeTarget {
             name = "zips-all-specs";
-            target = "all-protocol";
+            target = "all-specs";
             installCmd = ''
               mkdir -p "$out/rendered"
               cp -r rendered/protocol "$out/rendered/"
@@ -83,7 +92,8 @@
         };
 
         devShells.default = pkgs.mkShell {
-          packages = commonInputs;
+          packages = commonInputs ++ [ pkgs.dprint ];
+          DPRINT_MARKDOWN_PLUGIN = "${dprint-markdown-plugin}";
         };
       });
 }
