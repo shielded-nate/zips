@@ -139,68 +139,67 @@ Stalled Mode
 Abstract
 ========
 
-This ZIP describes the high-level design goals, motivations, and architecture
-of **Shielded Labs Crosslink v1**, a complete protocol and implementation
-produced by the Shielded Labs non-profit to add Crosslink Finality to the
-Zcash network.
+This ZIP describes the high-level design goals, motivations, concepts, and
+architecture of **Shielded Labs Crosslink v1**, henceforth "SL Crosslink", a new consensus protocol and implementation produced by the Shielded Labs non-profit to add Crosslink Finality to the Zcash network.
 
-Shielded Labs Crosslink v1 builds on the Zcash Trailing Finality Layer (TFL)
-initiative and its ``CCC-TFLv2`` hybrid construction, extending it into a
-deployable system with a fully specified finalization protocol (``CFP-SL``),
-staking rules (``RSM-SL-v1``), and network transport layer (``CNTP-SL``). The
-core hybrid consensus mechanism is ``CCC-SL``, which is formally specified in
-ZIP [#zip-ccc-sl]_.
+SL Crosslink includes significant substantial changes to Zcash so we've organized the proposal across multiple ZIPs, which taken altogether are a complete proposal. Their interrelationship with each other and the high-level concepts here are specified.
 
-This document is intended as the top-level overview for the entire Shielded
-Labs Crosslink v1 protocol suite. It does not itself specify consensus rules,
-but provides the rationale, component definitions, architecture diagram, and
-cross-references needed to understand and evaluate the companion ZIPs.
+Because the scope of SL Crosslink is significant and impacts existing Zcash consensus in several ways, we introduce and reframe some of the existing Zcash consensus protocol and concepts into a *conceptual architecture* to clarify which facets of Zcash SL Crosslink proposes to alter, which portions of Zcash SL Crosslink proposes to *not alter* or disrupt, and which portions of Zcash SL Crosslink is oblivious to.
 
+In addition to the conceptual architecture, we further distinguish various lynchpins of Zcash's protocol design as upholding certain *policies* (extrinsically defined constraints) versus *engineering constraints* (which are intrinsic in the design). We go even further, but more speculatively to suggest certain "meta-policies" which are extrinsically defined constraints about the kinds of policies the Zcash community finds acceptable. The notion of policies and meta-policies serves as a kind of "interface" between human-centric social consensus or governance and the technology design.
 
-Background: The TFL Initiative and CCC-TFLv2
-=============================================
+SL Crosslink is a complete consensus protocol specification for Zcash which builds on the predecessor Zcash Trailing Finality Layer (TFL) initiative, including the addition of necessary protocol components such as a specific *BFT protocol* and *ledger staking rules*, as well as deviations or adjustments from the TFL design. Any criticisms, discovered flaws, concerns, suggestions, questions, etc... about SL Crosslink are the responsibility of Shielded Labs and not the TFL contributors who should be assumed to not endorse (or even be aware of) any aspect of SL Crosslink without their explicit clarification.
+
+Background: The TFL Initiative
+------------------------------
 
 The Zcash Trailing Finality Layer (TFL) was an initiative by the former
 Electric Coin Company (ECC) to introduce Crosslink Finality to Zcash through
 a hybrid Proof-of-Work / Proof-of-Stake consensus design. The TFL design book
 [#tfl-book]_ documents this initiative and produces the Crosslink Consensus
-Construction (version 2, ``CCC-TFLv2``), which provides the theoretical
-framework and security analysis for integrating a PoW chain with a BFT
-finality layer.
+Construction (version 2), which provides the theoretical framework and security
+analysis for integrating a PoW chain with a BFT finality layer.
 
-Shielded Labs Crosslink v1 is a successor to the TFL initiative, produced by
-the Shielded Labs non-profit. While ``CCC-TFLv2`` provides the abstract
-consensus foundation, many practical design and implementation details were
-left unspecified in the TFL book. Shielded Labs has extended the TFL work in
-several important ways:
+Shielded Labs Crosslink v1 produced by the Shielded Labs non-profit continues from
+the TFL initiative. While the TFL Book Crosslink Consensus Construction v2 provides
+the abstract consensus foundation, many practical design and implementation details
+were left unspecified in the TFL book, although the dependencies and requirements for
+those known components are specified. Shielded Labs has extended the TFL work in
+several important ways.
 
-* **CCC-SL**: A fully specified consensus construction closely following
-  CCC-TFLv2 but with practical adaptations and Zcash-specific details.
+First, the `ZIP Shielded Labs Crosslink Consensus Construction`_ has roughly the same
+scope as the TFL Book Crosslink Construction v2, and that ZIP is responsible for
+highlighting important differences between the two. Readers who wish to understand the
+theoretical foundations of the consensus construction are encouraged to read the TFL book
+[#tfl-book]_ alongside these ZIPs, with the understanding that SL Crosslink may use
+different terminology and make different design trade-offs in some areas.
 
-* **CFP-SL**: A complete specification and prototype implementation of the
-  BFT finalization protocol (the ``Π_bft`` component left abstract in
-  CCC-TFLv2).
+Second, the other SL Crosslink ZIPs described below are novel components for a full
+working consensus protocol, and only indirectly relate to the TFL book.
 
-* **RSM-SL-v1**: A full specification of the staking rules and roster
-  management (the "PoS staking mechanics" left unspecified in CCC-TFLv2).
-
-* **CNTP-SL**: A network transport layer for finality updates (entirely new
-  relative to CCC-TFLv2, which does not address the network layer).
-
-* **Working prototype**: A complete prototype implementation based on Zebra
-  [#zebra-crosslink]_ demonstrating all components working together.
-
-Readers who wish to understand the theoretical foundations of the consensus
-construction are encouraged to read the TFL book [#tfl-book]_ alongside these
-ZIPs, with the understanding that Shielded Labs Crosslink v1 may use different
-terminology and make different design trade-offs in some areas.
-
+Third, a substantial contribution of Shielded Labs is to also develop a working
+implementation aimed at satisfying these ZIPs.
 
 Motivation
 ==========
 
+Fundamental Consensus Goals
+---------------------------
+
+Before digging into motivations for SL Crosslink itself, beyond the existing Mainnet Zcash protocol, it's helpful to restate the foundational motivations of Zcash in the first place. Here we state what we believe these are, acknowledging that other Zcashers may hold differing stances:
+
+- Zcash aims to enable anyone, anywhere, to hold and transfer an abstract asset called ZEC,
+- to rely on certain properties of ZEC underpinned by protocol properties provided by Zcash,
+- and to have confidence those properties will persist into the long term future,
+- while minimizing their exposure to coercion such as surveillance, theft, or their prevention in coordinating with anyone of their choosing
+- insofar as is possible to achieve technologically and culturally through the Zcash project.
+
+An implied property of those motivations is that the network (and ideally the social community) must be permissionless for both "end users" and infrastructure providers with no unique privileges to any participants, especially in the protocol infrastructure. Any such unique privileges would make mean users' confidence in the long term resilience of Zcash would be predicated on those people or entities, rather than a more abstract anti-fragile protocol itself.
+
+Both current and past Zcash protocol versions on Mainnet aim to meet these motivations, and we intend to meet the same with SL Crosslink.
+
 Probabilistic vs. Crosslink Finality
---------------------------------------
+------------------------------------
 
 The current Zcash consensus protocol uses Nakamoto-style Proof-of-Work, which
 provides only *probabilistic* finality: a transaction confirmed at depth ``k``
