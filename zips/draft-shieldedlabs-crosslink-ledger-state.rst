@@ -152,7 +152,35 @@ Validator
 Abstract
 ========
 
-This ZIP specifies the Crosslink ledger state changes required by RSM-SL-v1, and by implication the transaction changes and overall ledger state consensus semantics. Ledger-state consensus
+This ZIP specifies the subset of the Shielded Labs Crosslink v1 (SL Crosslink) design which modifies the Zcash *ledger state*. SL Crosslink is specified across several related ZIPs all of which assume the others as a whole. See `SL Crosslink Overview ZIP`_ for the overall design and relationships between these component ZIPs.
+
+The *ledger state* is the heart of Zcash, where we can think of the consensus protocol, the network, wallets, and the whole ecosystem of products and services that people use to interact with Zcash as all about how to safely learn about or initiate changes to this ledger state.
+
+We conceptualize the ledger state abstractly as a working memory data structure which is computable given _only_ a PoW block hash and its referenced history, with the assumption that this complete history is available as input to an abstract `ledger state function`.
+
+FIXME: users concern also includes concensus agreement, not just valid state.
+
+The primary concern of users is how their ZEC is tracked safely in this state, that they have the ability to spend it to recipients (safely and privately), and that the top-line rules that govern ZEC (such as the issuance schedule and cap or infeasibility of counterfeiting) are upheld. The ledger state encompasses these primary concerns.
+
+The `ledger state function` computes 
+
+
+Additionally, the ledger state consists of "all the other stuff" necessary to ensure these primary user concerns are taken care of, especially including:
+
+- cryptographic data to protect against theft, to protect privacy, and to ensure fundamental ZEC scarcity,
+- issuance rules
+
+what all users care about, and it's maintenance and distribution is the whole purpose of the Zcash network and consensus protocol. The primary simple summary of this state is to track how balances of ZEC are held, plus 
+
+- the balances of ZEC held,
+- the rules for how ZEC is issued and distributed,
+- and the transaction
+
+ counterfeiting, and unnecessary exposure of private details, and the 
+
+This ZIP specifies the Crosslink ledger state, ZEC accounting, and transaction changes required by Shielded Labs Crosslink v1. This ZIP 
+
+, and by implication the transaction changes and overall ledger state consensus semantics. Ledger-state consensus
 
 It defines the idealized point-in-time ledger state extension, and the ledger
 mutation rules that update this state, including issuance distribution and
