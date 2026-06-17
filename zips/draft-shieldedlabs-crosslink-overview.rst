@@ -177,6 +177,26 @@ development of CCC-TFLv2 (and by extension CCC-SL):
 * The security analysis of CCC-TFLv2 / CCC-SL is more rigorous and complete
   than what is available for Snap-and-Chat.
 
+Conceptual Architecture
+=======================
+
+.. admonition:: TODO
+
+   Determine the best location for this section.
+
+In this section we present a `conceptual architecture` which reframes the *current* [#zcash-nu6.1]_ protocol and then also defines SL Crosslink in terms of the same architecture. This serves to highlight the areas of change required to deploy SL Crosslink as well as to delineate which portions of the protocol or existing constraints are *not* changed.
+
+The Zcash Blockchain
+--------------------
+
+The `Zcash blockchain` is a tree of possible blocks which can be extended with actual blocks through the `Zcash Consensus Protocol`.
+
+Ledger State
+------------
+
+
+
+
 Requirements
 ============
 
@@ -609,7 +629,7 @@ References
 ==========
 
 .. [#BCP14] `Information on BCP 14 — "RFC 2119: Key words for use in RFCs to Indicate Requirement Levels" and "RFC 8174: Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words" <https://www.rfc-editor.org/info/bcp14>`_
-.. [#protocol] `Zcash Protocol Specification, Version 2022.3.8 or later <protocol/protocol.pdf>`_
+.. [#zcash-nu6.1] `Zcash Protocol Specification, Version 2025.6.2 [NU6.1]. <protocol/protocol.pdf>`_
 .. [#protocol-networks] `Zcash Protocol Specification, Version 2022.3.8. Section 3.12: Mainnet and Testnet <protocol/protocol.pdf#networks>`_
 .. [#zip-0200] `ZIP 200: Network Upgrade Mechanism <zip-0200.rst>`_
 .. [#zip-ccc-sl] `ZIP [Unassigned]: CCC-SL: Crosslink Consensus Construction from Shielded Labs <draft-shieldedlabs-crosslink-construction.rst>`_
