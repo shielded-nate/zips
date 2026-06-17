@@ -3,7 +3,9 @@
   ZIP: Unassigned {numbers are assigned by ZIP editors}
   Title: RSM-SL-v1: Crosslink Ledger State and Ledger Mutations
   Owners: Nate Wilcox <nate@shieldedlabs.com>
-  Credits: Daira-Emma Hopwood
+  Credits: Andrew Reece <andrew@shieldedlabs.com>
+           Mark Hendersen <mark@shieldedlabs.net>
+           Daira-Emma Hopwood
            Jack Grigg
            Kris Nuttycombe
   Status: Draft
@@ -29,33 +31,157 @@ RSM-SL-v1
   The Shielded Labs v1 instantiation of the roster state module referenced by
   the Crosslink Overview ZIP [#zip-crosslink-overview]_.
 
-Idealized ledger state
-  A point-in-time abstract data structure used for specification and consensus
-  reasoning. Implementations MAY use equivalent internal layouts, but MUST
-  produce exactly the same externally verifiable state transitions as if they
-  had updated this idealized structure directly.
+Ledger state
+  The full state computable from a given history implied by a PoW block hash,
+  provided all of that history is objectively verifiable as consensus
+  compatible. This ZIP shortens this, unambiguously to "ledger" after introducing
+  the concept. Typically we focus only on the subset of computable state required
+  for objectively verifying consensus (although in other contexts ledger state
+  may include non-consensus inputs, such as shielded protocol ciphertexts which
+  provide useful coordination between wallets).
+
+Objective Verification
+  The process of verifying a property _only_ using a given PoW block hash
+  and all implied history. This "meta-property" may be applied to various
+  properties of interest, though without qualification, the implied property is
+  "complete consensus validity of the full ledger state". An example of a specific
+  subproperty common to both Mainnet Zcash and Crosslink is objectively verifiable
+  Difficulty-Adjustment Algorithm constraints.
 
 Bond
-  A delegated ZEC amount associated with a Finalizer identifier and tracked by
-  this specification's ledger state rules.
+  A ledger component consisting of an amount of bonded ZEC, a delegated finalizer,
+  and a unique verifier for user wallets to authorize withdrawals or
+  re-delegation.
+
+Bond withdrawal
+  Ledger state tracking a pending withdrawal of a bond, consisting of an amount
+  of bonded ZEC, and a unique verifier for user wallets to complete a withdrawal
+  into the Orchard pool.
 
 Candidate Roster
-  A deterministic mapping from Finalizer identifiers to voting weights,
-  computed by summing all currently effective bonds for each Finalizer.
+  A ledger component mapping from Finalizer identifiers to voting weights,
+  computed by summing all effective bonded amounts delegated to that
+  Finalizer.
 
-Active Finalizer set
-  The top ``K`` Finalizers by voting weight in the Candidate Roster, where
-  ``K = 100``.
+Active Roster
+  The top ``ACTIVE_ROSTER_SLOTS`` entries of the Candidate Roster. This is
+  the crucial intersection of consensus state and (potentially ephemeral) BFT
+  subprotocol state which enables BFT to produce finality certificates and ledger
+  consensus rules to safely rely on those certificates.
 
-Most-recent-final ancestor
-  For any PoW tip block, the unique most recent ancestor on that tip's chain
-  that is finalized under CCC-SL [#zip-ccc-sl]_.
+BFT Finality Certificate
+  An attestation of the finality of a PoW block. This is often shortened to
+  "finality certificate" unambiguously. The ledger consensus rules rely on
+  finality certificates to provide the Crosslink Finality security property,
+  which is objectively verifiable.
+
+Crosslink Finality
+  Crosslink Finality is a term capturing the five specific characteristics of
+  finality which Crosslink aspires to provide. [FIXME: see the overview ZIP, or
+  should we be consolidating these terms in a single ZIP?] Because this bundle
+  of characteristics is specific to this project, as far as we are aware, we
+  disambiguate with the "Crosslink" prefix. An example of how this is important
+  is that stock BFT finality is not objectively verifiable, depending on specifics
+  about particular protocol designs, whereas Crosslink ensures Crosslink Finality
+  *is* objectively verifiable.
+
+Most-Recent Final Ancestor
+  The Most-Recent Final Ancestor is the most recent ancestor of a given PoW block
+  which has objectively verifiable finality. This is often shortened to "final
+  ancestor", and this is relatively safe and unambiguous, given that a more recent
+  final state supercedes any previous known final state in terms of verifying
+  consensus.
+
+Final Ledger State
+  The Final Ledger State given any PoW block is all of the Ledger State associated
+  with the Most-Recent Final Ancestor of that PoW block. This definition simply
+  combines the two objectively verifiable properties of the tip block's final
+  ancestor and that ancestor's (recursively) objectively verifiable ledger state.
+
+  This allows a conceptual and potential implementation simplification: the
+  ledger state can be a single unified data structure for a given block, without
+  a need or distinction to compute separate "pending versus final" state for that
+  block. Instead there is only one kind of state computed and finality is reduced
+  to only a matter of objectively verifiable historical position.
+
+  This is also a useful constraint for safety analysis: no ledger consensus rule can
+  have the form "the state if X if this block is pending, otherwise it is Y if it is
+  final", thereby ensuring we can exclude swathes of complexity in consensus logic.
+
+  FIXME: Is there a term for this kind of simplifying constraint that enables
+  better static safety reasoning?
+
+Anti-Terminology
+----------------
+
+Sometimes we notice terms or phrases take hold which we believe cause more confusion
+than they are worth. This section lists relevant anti-terms and why we advocate
+against using them in the context of Crosslink.
+
+Validator
+  This term is frequently used in PoS contexts, but we find it hazardous for
+  Zcash or Crosslink for both normative and descriptive reasons.
+
+  Normatively, Zcash aims to enable individuals to cooperate by relying on
+  network-enforced consensus rules without any external authority, so the primary
+  focus for protocol designers and developers building on the protocol with this
+  ethos should be ensuring _individuals_ can _directly / locally verify_ a given
+  history follows all ledger consensus rules without relying on the judgement of
+  an external authority. By contrast "validator" may carry the connotation of an
+  external authority vouching, attesting to, or designating a history "valid".
+
+  Descriptively, for Crosslink itself, the active participants in BFT decisions are _only_ agreeing on the BFT finality status of 
+
+  Consider this dictionary definition of the verb `validate`:
+
+      *validate* transitive verb::
+
+        1 a : to make legally valid : ratify
+          b : to grant official sanction to by marking
+          c : to confirm the validity of (an election)
+            : to declare (a person) elected
+        2 a : to support or corroborate on a sound or authoritative basis
+          b : to recognize, establish, or illustrate the worthiness or legitimacy of
+
+      -- Merriam-Webster: https://www.merriam-webster.com/dictionary/validator
+
+
+   product and definitions with "legal" or "official"
 
 
 Abstract
 ========
 
-This ZIP specifies the Crosslink ledger-state changes required by RSM-SL-v1.
+This ZIP specifies the subset of the Shielded Labs Crosslink v1 (SL Crosslink) design which modifies the Zcash *ledger state*. SL Crosslink is specified across several related ZIPs all of which assume the others as a whole. See `SL Crosslink Overview ZIP`_ for the overall design and relationships between these component ZIPs.
+
+The *ledger state* is the heart of Zcash, where we can think of the consensus protocol, the network, wallets, and the whole ecosystem of products and services that people use to interact with Zcash as all about how to safely learn about or initiate changes to this ledger state.
+
+We conceptualize the ledger state abstractly as a working memory data structure which is computable given _only_ a PoW block hash and its referenced history, with the assumption that this complete history is available as input to an abstract `ledger state function`.
+
+FIXME: users concern also includes concensus agreement, not just valid state.
+
+The primary concern of users is how their ZEC is tracked safely in this state, that they have the ability to spend it to recipients (safely and privately), and that the top-line rules that govern ZEC (such as the issuance schedule and cap or infeasibility of counterfeiting) are upheld. The ledger state encompasses these primary concerns.
+
+The `ledger state function` computes 
+
+
+Additionally, the ledger state consists of "all the other stuff" necessary to ensure these primary user concerns are taken care of, especially including:
+
+- cryptographic data to protect against theft, to protect privacy, and to ensure fundamental ZEC scarcity,
+- issuance rules
+
+what all users care about, and it's maintenance and distribution is the whole purpose of the Zcash network and consensus protocol. The primary simple summary of this state is to track how balances of ZEC are held, plus 
+
+- the balances of ZEC held,
+- the rules for how ZEC is issued and distributed,
+- and the transaction
+
+ counterfeiting, and unnecessary exposure of private details, and the 
+
+This ZIP specifies the Crosslink ledger state, ZEC accounting, and transaction changes required by Shielded Labs Crosslink v1. This ZIP 
+
+, and by implication the transaction changes and overall ledger state consensus semantics. Ledger-state consensus
+
 It defines the idealized point-in-time ledger state extension, and the ledger
 mutation rules that update this state, including issuance distribution and
 roster mutations.
@@ -222,6 +348,14 @@ Detailed policy values (for example, exact allocation percentages) MAY be set by
 separate process or funding ZIPs, but this ZIP defines the consensus state
 transition hooks that enforce whichever policy is activated.
 
+
+Protocol Constant Parameters
+----------------------------
+
+These parameters are fixed constants used in Crosslink ledger consensus verification:
+
+- ``ACTIVE_ROSTER_SLOTS = 100``, the maximum number of finalizers which participate
+  in producing a BFT Finality Certificate.
 
 Rationale
 =========
