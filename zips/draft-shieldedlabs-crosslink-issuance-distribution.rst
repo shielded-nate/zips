@@ -60,10 +60,31 @@ The specification MUST ensure these `Supply Integrity Properties`:
 Specification
 =============
 
+The specification is split into a `Conceptual Specification`_ which uses mathematical notation and describes verification rules at a high level with an intended audience of anyone interested in staking or finalization distribution rules, and a `Concrete Specification`_ using pseudocode aimed at implementors and code analysis.
+
 Conceptual Specification
 ------------------------
 
-Conceptually, in each block at height $h$, the `ZEC Issuance Policy` allocates `block subsidy`, which includes a `Consensus Infrastructure Budget (CIB)` of *up to and no more than* $S_h$ ZEC to be allocated by the `Zcash consensus protocol`. In `Zcash NU6.1` and earlier, the CIB is allocated entirely to the `miner subsidy`. When the active `Zcash consensus protocol` is `SL Crosslink`, any `verifier` must ensure the CIB distribution follows these rules:
+This higher-level specification states the verification rules in a more "natural" way that might match verbal explanations given to users about the accounting rules of Proof of Stake in `SL Crosslink`. At the same time, it aims to be mathematically precise *except for* accounting for numerical calculation errors.
+
+Notational Conventions
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. admonition:: TODO
+
+   Figure out where this section should live?
+
+We use these conventions in mathematical notation:
+
+- $\mathsf{BondId}$ represents the set of all possible `bond identifiers`. These are unique identifiers which can also be used to verify signatures bound to a uniquely associated signing secret. The notation $b \in \mathsf{BondId}$ indicates $b$ is one such identifier.
+- $\mathsf{FinalizerId}$ represents the set of all possible `finalizer identifiers`. These are unique identifiers which can also be used to verify signatures bound to a uniquely associated signing secret. The notation $f \in \mathsf{FinalizerId}$ indicates $f$ is one such identifier.
+
+The Consensus Infrastructure Budget
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Conceptually, in each block at height $h$, the `ZEC Issuance Policy` allocates `block subsidy`, which includes a `Consensus Infrastructure Budget (CIB)` of *up to and no more than* $S_h$ ZEC to be allocated by the `Zcash consensus protocol`. This is a conceptual reframing of the relationships between the `ZEC Issuance Policy` and CIB which is intended to be generic over issuance policies and consensus algorithms (so for example it applies to current and historical Mainnet Zcash) which serves to delineate the scope and interactions of `SL Crosslink` with the rest of the existing Zcash protocol.
+
+In `Zcash NU6.1` and earlier, the CIB is allocated entirely to the `miner subsidy`. When the active `Zcash consensus protocol` is `SL Crosslink`, any `verifier` must ensure the CIB distribution follows these rules:
 
 1. The budget is divided in half between the `PoW` and `PoS` subprotocols: $S_h = S^{PoW}_h + S^{PoS}_h$, where:
 
@@ -88,14 +109,47 @@ The `Bond Rewards` for a block, $R_h$, are distributed logically proportionally 
 Naive Bond Rewards Distribution
 '''''''''''''''''''''''''''''''
 
-Let $b^{<i>}_h$ be a `running bond balance` in the `Ledger State` for height $h$ for a bond with identity $<i>$. The angle bracket notation, $<\cdot>$, emphasizes each bond's unique identity while the set of bonds may change over block heights (so a "bare index" $i$ may be hazardously misleading).
+Let $b^i_h$ be a `running bond balance` in the `Ledger State` for height $h$ for a bond with identity $i \in \mathsf{BondId}$.
 
-Let $B_h$ be the sum of `running bond balance` values at a given height: $B_h = \sum_{<i>} b^{<i>}_h$
+Let $B_h$ be the sum of `running bond balance` values at a given height: $B_h = \sum_{i} b^i_h$
 
 When calculating the `Ledger State` for height $h$, follow these steps for each `running bond balance`, $b^{<i>}_h$:
 
 1. Calculate the bond's block reward: $r^{<i>}_h = \frac{ b^{<i>}_{h - 1} }{ B_{h - 1} } R_h$
 2. Increment the `running bond balance` by the reward: $b^{<i>}_h = b^{<i>}_{h-1} + r^{<i>}_h$
+
+This is called "naive" because there is a significantly more efficient specification given in the `Concrete Specification`_ below.
+
+Finalizer Commissions
+~~~~~~~~~~~~~~~~~~~~~
+
+At some height $h$, each bond $<i>$ `endorses` some finalizer $\operatorname{endorce}(<i>) = <f>$ and we define the `finalizer weight` at that height to be the sum of `running bond balances` for that finalizer:
+
+.. math::
+
+   W^{<f>}_h = \sum_{<i>} b^{<i>}_h \quad \text{where } \operatorname{endorsement}(<i>) = <f>
+
+The `candidate finalizer roster` at height $h$ is the list of finalizers sorted by finalizer weight from greatest weight at index `0` to least weight. The `active finalizer roster` consists of the top `K` entries on the `candidate finalizer roster` with this weight-based sorting.
+
+The `ledger state` for height $h$ includes an `accumulated finalizer commissions` counter for *every* finalizer on the roster, denominated in ``ZATOSHI``
+
+.. admonition:: FIXME
+
+   The ledger state must track both finalizers with any weight > 0 *and* finalizers with any `accumulated finalizer commisions` > 0!
+
+.. admonition:: TODO
+
+   Complete finalizer commission abstract specification.
+
+
+Concrete Specification
+----------------------
+
+The `Conceptual Specification`_ is written using math notation and high-level rule statements to aid in understanding and describing the Proof of Stake rewards distribution, which can be of interest especially to a broad range of users who are staking or operating finalizers. In this section, we focus on specification better suited to software implementors and code reviewers. It's important that we demonstrate these specifications are equivalent to the conceptual specification, especially where we've introduced optimizations. Additionally, the conceptual specification glosses over numerical arithmetic error, which we treat explicitly in this section.
+
+.. admonition:: TODO
+
+   Fill out this section; use ``CODE_FRIENDLY_CONSTANTS`` and ``variable_names`` and pseudocode rather than math notation.
 
 Numerical Error
 ---------------
