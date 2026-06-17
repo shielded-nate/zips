@@ -99,7 +99,7 @@ In `Zcash NU6.1` and earlier, the CIB is allocated entirely to the `miner subsid
 
 4. The `Bond Rewards`, $R_h$, are split proportionally among the bonds current at that height, as described below in `Bond Rewards`_.
 5. Up to $C_h$ `Finalizer Commissions` are split among `Active Finalizers` as described below in `Finalizer Commissions`_.
-6. Any undistributed ZEC left in the `Finalizer Commissions` or due to numerical rounding (see `Numerical Error`_) is considered to be not issued in this block, whose impact depends on the `ZEC Issuance Policy`_. (In [zcash-nu-6.1]_ such ZEC would remain unissued indefinitely, while with `ZIP XXXX FIXME`_ the unissued ZEC may contribute to future issuance.)
+6. Any undistributed ZEC left in the `Finalizer Commissions` or due to numerical rounding (see `Numerical Error`_) is considered to be not issued in this block, whose impact depends on the `ZEC Issuance Policy`. (In [zcash-nu6.1]_ such ZEC would remain unissued indefinitely, while with [#ZIP-0234]_ activation, the unissued ZEC may contribute to future issuance.)
 
 Bond Rewards
 ~~~~~~~~~~~~
@@ -113,21 +113,21 @@ Let $b^i_h$ be a `running bond balance` in the `Ledger State` for height $h$ for
 
 Let $B_h$ be the sum of `running bond balance` values at a given height: $B_h = \sum_{i} b^i_h$
 
-When calculating the `Ledger State` for height $h$, follow these steps for each `running bond balance`, $b^{<i>}_h$:
+When calculating the `Ledger State` for height $h$, follow these steps for each `running bond balance`, $b^i_h$:
 
-1. Calculate the bond's block reward: $r^{<i>}_h = \frac{ b^{<i>}_{h - 1} }{ B_{h - 1} } R_h$
-2. Increment the `running bond balance` by the reward: $b^{<i>}_h = b^{<i>}_{h-1} + r^{<i>}_h$
+1. Calculate the bond's block reward: $r^i_h = \frac{ b^i_{h - 1} }{ B_{h - 1} } R_h$
+2. Increment the `running bond balance` by the reward: $b^i_h = b^i_{h-1} + r^i_h$
 
 This is called "naive" because there is a significantly more efficient specification given in the `Concrete Specification`_ below.
 
 Finalizer Commissions
 ~~~~~~~~~~~~~~~~~~~~~
 
-At some height $h$, each bond $<i>$ `endorses` some finalizer $\operatorname{endorce}(<i>) = <f>$ and we define the `finalizer weight` at that height to be the sum of `running bond balances` for that finalizer:
+At some height $h$, each bond $i$ `endorses` some finalizer $\operatorname{endorse}(i) = f$ and we define the `finalizer weight` at that height to be the sum of `running bond balances` for that finalizer:
 
 .. math::
 
-   W^{<f>}_h = \sum_{<i>} b^{<i>}_h \quad \text{where } \operatorname{endorsement}(<i>) = <f>
+   W^f_h = \sum_{i} b^i_h \quad \text{where } \operatorname{endorsement}(i) = f
 
 The `candidate finalizer roster` at height $h$ is the list of finalizers sorted by finalizer weight from greatest weight at index `0` to least weight. The `active finalizer roster` consists of the top `K` entries on the `candidate finalizer roster` with this weight-based sorting.
 
@@ -167,5 +167,8 @@ References
 ==========
 
 .. [#BCP14] `Information on BCP 14 — "RFC 2119: Key words for use in RFCs to Indicate Requirement Levels" and "RFC 8174: Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words" <https://www.rfc-editor.org/info/bcp14>`_
+.. [#zcash-nu6.1] `Zcash Protocol Specification, Version 2025.6.2 [NU6.1]. <protocol/protocol.pdf>`_
 .. [#protocol-networks] `Zcash Protocol Specification, Version 2025.6.2 [NU6.1]. Section 3.12: Mainnet and Testnet <protocol/protocol.pdf#networks>`_
 .. [#coinbase-transactions] `Zcash Protocol Specification, Version 2025.6.2 [NU6.1]. Section 3.11: Coinbase Transactions <protocol/protocol.pdf#coinbase_transactions>`_
+.. [#zec-issuance-policy] `DRAFT ZIP: Shielded Labs Crosslink v1: Protocol Overview and Architecture <draft-shieldedlabs-crosslink-overview.rst>`_
+.. [#zip-0234] `ZIP 234: Network Sustainability Mechanism: Issuance Smoothing <zip-0234.md>`_

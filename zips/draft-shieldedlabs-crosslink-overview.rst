@@ -25,78 +25,11 @@ defined in the Zcash protocol specification [#protocol-networks]_.
 
 The terms below are to be interpreted as follows:
 
-Zcash Trailing Finality Layer (TFL)
-  An initiative by the former Electric Coin Company (ECC) to augment the
-  Zcash Proof-of-Work consensus with a Proof-of-Stake finality layer,
-  documented in the TFL book [#tfl-book]_. The TFL initiative produced the
-  theoretical design basis for Shielded Labs Crosslink v1.
-
-Crosslink Consensus Construction from the TFL Book (CCC-TFLv2)
-  The abstract hybrid consensus construction documented in the TFL book
-  [#tfl-book]_, version 2. CCC-TFLv2 describes how to integrate a best-chain
-  (PoW) protocol with a BFT (PoS) protocol and provides a formal security
-  analysis of the resulting hybrid. This construction is the direct theoretical
-  basis for ``CCC-SL``.
-
 Shielded Labs Crosslink v1
-  The complete protocol and working implementation produced by the Shielded
-  Labs non-profit, extending CCC-TFLv2 with additional practical and
-  theoretical design details necessary for a production deployment. Shielded
-  Labs Crosslink v1 is a superset of the TFL in several respects: it includes
-  a fully prototyped working implementation, and it extends the older TFL
-  design with additional components (``CFP-SL``, ``RSM-SL-v1``, ``CNTP-SL``)
-  that are not fully specified in the TFL book. This ZIP and its companions
-  specify the protocols of Shielded Labs Crosslink v1.
-
-Crosslink Consensus Construction from Shielded Labs (CCC-SL)
-  The abstract hybrid consensus construction that is the core of Shielded Labs
-  Crosslink v1, inspired by CCC-TFLv2. CCC-SL treats the Zcash PoW protocol
-  and ``CFP-SL`` as somewhat opaque subprotocols, each performing their own
-  consensus, while requiring specific cross-referencing modifications to each.
-  CCC-SL is specified in ZIP [#zip-ccc-sl]_.
-
-Crosslink Finalization Protocol from Shielded Labs (CFP-SL)
-  The Proof-of-Stake BFT protocol used as the finalization subprotocol in
-  Shielded Labs Crosslink v1, with "adaptation modifications" to interface
-  with ``CCC-SL``. ``CFP-SL`` provides Crosslink Finality by running Byzantine
-  Fault Tolerant consensus over snapshots of the Zcash PoW chain.
-
-Roster State Module (RSM)
-  An abstract interface required by ``CFP-SL``. The RSM provides the latest
-  ``Active Roster Mapping`` from cryptographically self-authenticating vote
-  verifier identities to their associated voting weights. The Active Roster
-  Mapping also defines ``Roster Evolution Rules``, which are a subset of
-  ledger state evolution rules composing Zcash's ledger state consensus.
-
-RSM-SL-v1
-  The specific instantiation of the Roster State Module for Shielded Labs
-  Crosslink v1. RSM-SL-v1 defines all staking rules that users interact with
-  directly: staking ZEC to a Finalizer identity, unbonding periods, amount
-  quantization, slashing conditions, and related rules.
-
-Crosslink Network Transport Protocol from Shielded Labs (CNTP-SL)
-  The network transport layer for Shielded Labs Crosslink v1, enabling
-  ``CFP-SL`` to safely and efficiently disseminate finality updates.
-  ``CNTP-SL`` provides pragmatic protections against network threats (DoS,
-  message tampering, etc.) and improvements over the status quo Zcash p2p
-  protocol, including transport-layer encryption, faster block and ledger
-  syncing, and firewall traversal.
-
-Active Roster Mapping
-  A mapping from Finalizer vote-verifier public keys to their associated
-  voting weights, maintained by the Roster State Module. This mapping defines
-  which parties are authorized to participate in ``CFP-SL`` voting at a given
-  point in the ledger history.
-
-Finalizer
-  A participant in the ``CFP-SL`` subprotocol who holds an active entry in
-  the Active Roster Mapping and participates in BFT consensus to finalize
-  PoW blocks.
-
-Roster Evolution Rules
-  The subset of ledger state evolution rules (within Zcash's consensus) that
-  govern how the Active Roster Mapping changes over time: new stakers joining,
-  unstaking and unbonding, slashing, and similar events.
+  The complete protocol and working implementation produced by the Shielded Labs
+  non-profit of a hybrid Proof-of-Work & Proof-of-Stake consensus protocol for Zcash which
+  introduces Crosslink Finality, the finalizer network, and staking. This is largely
+  inspired by the `TFL Book`_.
 
 Crosslink Finality
   The finality property provided by Shielded Labs Crosslink v1, as defined in
@@ -117,30 +50,12 @@ Crosslink Finality
      Crosslink Finality must expend significantly more resources than honest
      participants spend to maintain it.
 
-Trailing Finality
-  A protocol property wherein transactions become final some time after first
-  appearing in PoW blocks.
-
-Bounded Availability
-  The property that the best-chain ledger does not grow unboundedly ahead of
-  the finalized ledger during a finality stall, preventing indefinite
-  accumulation of unfinalized transactions.
-
-Finality Gap
-  The number of best-chain (PoW) blocks that have not yet been finalized by
-  ``CFP-SL`` at a given time.
-
-Stalled Mode
-  A mode entered when the finality gap exceeds a threshold ``L``, indicating
-  an exceptional or emergency condition. In Stalled Mode, PoW block producers
-  are constrained by the ``CCC-SL`` rules to produce only stalled blocks.
-
 
 Abstract
 ========
 
 This ZIP describes the high-level design goals, motivations, concepts, and
-architecture of **Shielded Labs Crosslink v1**, henceforth "SL Crosslink", a new consensus protocol and implementation produced by the Shielded Labs non-profit to add Crosslink Finality to the Zcash network.
+architecture of `Shielded Labs Crosslink v1`, henceforth `SL Crosslink`, a new consensus protocol and implementation produced by the Shielded Labs non-profit to add Crosslink Finality to the Zcash network.
 
 SL Crosslink includes significant substantial changes to Zcash so we've organized the proposal across multiple ZIPs, which taken altogether are a complete proposal. Their interrelationship with each other and the high-level concepts here are specified.
 
@@ -167,7 +82,7 @@ were left unspecified in the TFL book, although the dependencies and requirement
 those known components are specified. Shielded Labs has extended the TFL work in
 several important ways.
 
-First, the `ZIP Shielded Labs Crosslink Consensus Construction`_ has roughly the same
+First, the ``XXX FIXME: How do we refer to the equivalent scope of TFL construction in SL Crosslink?``  has roughly the same
 scope as the TFL Book Crosslink Construction v2, and that ZIP is responsible for
 highlighting important differences between the two. Readers who wish to understand the
 theoretical foundations of the consensus construction are encouraged to read the TFL book
@@ -261,23 +176,6 @@ development of CCC-TFLv2 (and by extension CCC-SL):
 
 * The security analysis of CCC-TFLv2 / CCC-SL is more rigorous and complete
   than what is available for Snap-and-Chat.
-
-The Case for Bounded Availability
------------------------------------
-
-A key design goal of CCC-SL is *bounded availability*: preventing the PoW
-chain from growing unboundedly ahead of the finalized chain during a finality
-stall. Without this property, a period of ``CFP-SL`` failure could allow
-unbounded accumulation of unfinalized transactions. When ``CFP-SL`` recovered,
-users would face uncertainty about which transactions would ultimately be
-finalized and which would be reversed.
-
-Bounded availability addresses this by entering "Stalled Mode" when the
-finality gap exceeds a threshold ``L``. In Stalled Mode, PoW block producers
-are constrained to produce only "stalled blocks" — blocks that do not include
-new user transactions spending into the unfinalized zone. This limits user
-exposure during finalization failures.
-
 
 Requirements
 ============
