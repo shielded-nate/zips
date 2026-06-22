@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   publish:
-    uses: shielded-nate/multi-branch-pages/.github/workflows/publish-multi-branch-pages.yml@v1
+    uses: shielded-nate/multi-branch-pages/.github/workflows/publish-multi-branch-pages.yml@main
     with:
       branch_whitelist: "*"
       render_command: nix develop --command make all-zips
