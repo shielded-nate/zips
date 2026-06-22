@@ -80,7 +80,7 @@ jobs:
                   if name and fnmatch.fnmatch(branch, name):
                       sys.exit(0)
               sys.exit(1)
-          PY
+            PY
             then
               echo "should_deploy=true" >> "${GITHUB_OUTPUT}"
             else
