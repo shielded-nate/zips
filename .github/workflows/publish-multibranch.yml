@@ -1,7 +1,10 @@
 name: Publish (multi-branch)
 
 on:
-  push
+  push:
+    branches-ignore:
+      # Avoid infinite recursion! This action pushes to `gh-pages`:
+      - gh-pages
 
 env:
   CARGO_TERM_COLOR: always
