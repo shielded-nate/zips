@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Draft shieldedlabs-crosslink-construction: CCC-SL: Crosslink Consensus Construction from Shielded Labs</title>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="css/style.css"></head>
+<body>
+    <section>
+        <pre>ZIP: Unassigned {numbers are assigned by ZIP editors}
+Title: CCC-SL: Crosslink Consensus Construction from Shielded Labs
+Owners: Nate Wilcox &lt;nate@shieldedlabs.com&gt;
+Credits: Daira-Emma Hopwood
+         Jack Grigg
+         Kris Nuttycombe
+Status: Draft
+Category: Consensus
+Created: 2026-04-08
+License: MIT
+Discussions-To: TBD (no specific discussion thread yet)</pre>
+        <section id="terminology"><h2><span class="section-heading">Terminology</span><span class="section-anchor"> <a rel="bookmark" href="#terminology"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>The key words "MUST", "MUST NOT", "SHOULD", "SHOULD NOT", and "MAY" in this document are to be interpreted as described in BCP 14 <a id="footnote-reference-1" class="footnote_reference" href="#bcp14">1</a> when, and only when, they appear in all capitals.</p>
+            <p>The terms "Mainnet" and "Testnet" in this document are to be interpreted as defined in the Zcash protocol specification <a id="footnote-reference-2" class="footnote_reference" href="#protocol-networks">3</a>.</p>
+            <p>The terms below are to be interpreted as follows:</p>
+            <dl>
+                <dt>CCC-SL (Crosslink Consensus Construction from Shielded Labs)</dt>
+                <dd>The hybrid consensus construction specified by this ZIP, integrating the Zcash PoW best-chain protocol with <code>CFP-SL</code> to produce a protocol with both availability and Crosslink Finality. CCC-SL is the core of Shielded Labs Crosslink v1 and is closely based on CCC-TFLv2 from the TFL book <a id="footnote-reference-3" class="footnote_reference" href="#tfl-book">6</a>.</dd>
+                <dt>CCC-TFLv2 (Crosslink Consensus Construction from the TFL Book, version 2)</dt>
+                <dd>The abstract hybrid consensus construction documented in the Zcash TFL book <a id="footnote-reference-4" class="footnote_reference" href="#tfl-book">6</a>. CCC-SL is the Shielded Labs adaptation and extension of this construction for the Zcash PoW+TFL deployment.</dd>
+                <dt>CFP-SL (Crosslink Finalization Protocol from Shielded Labs)</dt>
+                <dd>The BFT Proof-of-Stake finalization protocol used as the BFT subprotocol within CCC-SL. CFP-SL satisfies the interface requirements (<code>Final
+Agreement</code> and related properties) defined in this ZIP.</dd>
+                <dt>Best-chain subprotocol (Π<sub>bc</sub>)</dt>
+                <dd>The Zcash Proof-of-Work best-chain protocol, modified by CCC-SL to participate in the hybrid construction. Blocks in this protocol are called "bc-blocks" and chains are "bc-chains".</dd>
+                <dt>Original best-chain subprotocol (Π<sub>origbc</sub>)</dt>
+                <dd>The "off-the-shelf" PoW best-chain protocol before CCC-SL modifications. For the Zcash deployment, this corresponds to the Zcash NU5/NU6 consensus protocol.</dd>
+                <dt>BFT subprotocol (Π<sub>bft</sub>)</dt>
+                <dd>The BFT protocol (instantiated by <code>CFP-SL</code>) modified to participate in CCC-SL. Blocks in this protocol are called "bft-blocks" and finality is called "bft-finality".</dd>
+                <dt>Original BFT subprotocol (Π<sub>origbft</sub>)</dt>
+                <dd>The "off-the-shelf" BFT protocol before CCC-SL adaptation modifications. CFP-SL is a specific instance of this with Zcash-specific adaptations.</dd>
+                <dt>bc-confirmation-depth (σ)</dt>
+                <dd>A protocol parameter specifying the number of bc-block confirmations required before a bc-block may be included in the snapshot referenced by a bft-block. This is also the default depth used by nodes when computing the locally finalized chain.</dd>
+                <dt>Finalization gap bound (L)</dt>
+                <dd>A protocol parameter specifying the maximum number of unfinalized bc-blocks permitted before CCC-SL enforces Stalled Mode. MUST satisfy <code>L ≥ 2σ</code>.</dd>
+                <dt>Bounded-availability depth (μ)</dt>
+                <dd>A per-node choice of confirmation depth for the locally bounded-available chain, where <code>0 &lt; μ ≤ σ</code>.</dd>
+                <dt>Locally finalized chain (<code>localfin</code>)</dt>
+                <dd>Each node's monotonically advancing view of the bc-chain that has been finalized by <code>CFP-SL</code>. Once a bc-block is in a node's locally finalized chain, it will never be removed from it.</dd>
+                <dt>Locally bounded-available chain (<code>localba</code>)</dt>
+                <dd>Each node's view of the confirmed (but not necessarily finalized) bc-chain, computed using confirmation depth μ.</dd>
+                <dt>Finality gap</dt>
+                <dd>At a given time, the number of bc-blocks in the bc-best-chain that have not yet been finalized by <code>CFP-SL</code>.</dd>
+                <dt>Stalled Mode</dt>
+                <dd>A mode enforced by CCC-SL when the finality gap exceeds <code>L</code>, during which bc-block producers are constrained to produce only stalled blocks.</dd>
+                <dt>Stalled block</dt>
+                <dd>A bc-block produced during Stalled Mode, constrained by the <code>isStalledBlock</code> predicate (e.g., not including new user transactions that spend into the unfinalized zone).</dd>
+                <dt>Final Agreement</dt>
+                <dd>The property of the BFT subprotocol (<code>CFP-SL</code>) that all bft-valid blocks in honest view are consistent: for any two such blocks, one must be an ancestor of the other.</dd>
+                <dt>Prefix Consistency</dt>
+                <dd>The property of the best-chain subprotocol (Zcash PoW) that any two honest nodes' confirmed best-chains are consistent up to their confirmed depths.</dd>
+                <dt>Crosslink Finality</dt>
+                <dd>The finality property provided by CCC-SL, as defined in the zebra-crosslink design documentation <a id="footnote-reference-5" class="footnote_reference" href="#zebra-crosslink-terminology">10</a>. Formally: for any two honest nodes <code>i</code> and <code>j</code> at any times <code>t</code> and <code>u</code>, if both <code>localfin_i(t)</code> and <code>localfin_j(u)</code> are non-genesis then one is a prefix of the other (<code>localfin_i(t) ≼_bc localfin_j(u)</code> or <code>localfin_j(u) ≼_bc localfin_i(t)</code>). See the Security Analysis section.</dd>
+                <dt><code>≼_bc</code> (bc-prefix relation)</dt>
+                <dd><code>A ≼_bc B</code> holds iff the bc-chain with tip <code>A</code> is a prefix of the bc-chain with tip <code>B</code>; equivalently, <code>A</code> is an ancestor of <code>B</code> or <code>A = B</code>. The notation <code>≼</code> (without subscript) is used as a shorthand for <code>≼_bc</code> when the context is unambiguous.</dd>
+                <dt><code>C.truncate_bc(k)</code></dt>
+                <dd>For a bc-chain <code>C</code> and natural number <code>k</code>: the bc-chain obtained by removing the last <code>k</code> blocks from <code>C</code>. The tip of <code>C.truncate_bc(k)</code> is the block at depth <code>k</code> in <code>C</code>. If <code>len(C) ≤ k</code>, the result is the genesis block <code>Origin_bc</code>. When applied to a block <code>H</code> (shorthand for the chain ending at <code>H</code>), <code>H.truncate_bc(k)</code> denotes the block at depth <code>k</code> from <code>H</code>.</dd>
+                <dt><code>lastCommonAncestor(A, B)</code></dt>
+                <dd>For two bc-blocks <code>A</code> and <code>B</code>: the most recent (deepest) bc-block that is an ancestor of both <code>A</code> and <code>B</code>. Equivalently, the tip of the longest common prefix of the bc-chains ending at <code>A</code> and <code>B</code>. If one block is an ancestor of the other, <code>lastCommonAncestor(A, B) = min(A, B)</code> by depth.</dd>
+                <dt><code>bftLastFinal(B)</code></dt>
+                <dd>For a bft-block <code>B</code>, the function returning the last bft-block that is considered final in the context of <code>B</code> (including <code>B</code> itself, if applicable). This function is defined by <code>CFP-SL</code>.</dd>
+                <dt><code>snapshot(B)</code></dt>
+                <dd>For a bft-block or bft-proposal <code>B</code>, the bc-block at the base of the bc-chain snapshot committed to by <code>B</code>. Formally: if <code>B.headers_bc</code> is null (genesis), <code>snapshot(B) = Origin_bc</code>; otherwise <code>snapshot(B) = B.headers_bc[0].truncate_bc(1)</code>.</dd>
+                <dt><code>LF(H)</code></dt>
+                <dd>For a bc-block <code>H</code>, the last final bft-block in the context of <code>H</code>: <code>LF(H) = bftLastFinal(H.context_bft)</code>.</dd>
+                <dt><code>candidate(H)</code></dt>
+                <dd>For a bc-block <code>H</code>, the candidate finalization point: <code>candidate(H) = lastCommonAncestor(snapshot(LF(H)), H.truncate_bc(σ))</code>.</dd>
+            </dl>
+        </section>
+        <section id="abstract"><h2><span class="section-heading">Abstract</span><span class="section-anchor"> <a rel="bookmark" href="#abstract"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>This ZIP specifies <strong>CCC-SL</strong> (the Crosslink Consensus Construction from Shielded Labs), the hybrid consensus protocol at the core of Shielded Labs Crosslink v1 <a id="footnote-reference-6" class="footnote_reference" href="#zip-crosslink-overview">5</a>. CCC-SL integrates the Zcash Proof-of-Work best-chain protocol with the <code>CFP-SL</code> BFT finalization protocol to provide both the availability properties of the PoW chain and the Crosslink Finality of a BFT protocol.</p>
+            <p>CCC-SL is closely based on the <code>CCC-TFLv2</code> construction from the Zcash TFL book <a id="footnote-reference-7" class="footnote_reference" href="#tfl-book">6</a>. The key features of CCC-SL are:</p>
+            <ol type="1">
+                <li>Cross-referencing fields in both bc-blocks and bft-blocks/proposals that allow each chain to objectively verify properties of the other.</li>
+                <li>A locally finalized chain (<code>localfin</code>) maintained by each node that advances monotonically and never rolls back.</li>
+                <li>A locally bounded-available chain (<code>localba</code>) providing a confirmed-but-not-necessarily-finalized view of the PoW chain.</li>
+                <li>A Stalled Mode mechanism implementing bounded availability when the finality gap exceeds the threshold <code>L</code>.</li>
+            </ol>
+            <p>This ZIP is accompanied by ZIP <a id="footnote-reference-8" class="footnote_reference" href="#zip-crosslink-overview">5</a>, which provides the design motivation and architecture overview for the full Shielded Labs Crosslink v1 protocol suite.</p>
+        </section>
+        <section id="motivation"><h2><span class="section-heading">Motivation</span><span class="section-anchor"> <a rel="bookmark" href="#motivation"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>See ZIP <a id="footnote-reference-9" class="footnote_reference" href="#zip-crosslink-overview">5</a> for the full motivation. In brief:</p>
+            <ul>
+                <li>Zcash's current PoW-only consensus provides only probabilistic finality, creating friction for exchanges, bridges, and other services.</li>
+                <li>Integrating <code>CFP-SL</code> as a finality layer via CCC-SL preserves PoW availability and security while adding Crosslink Finality.</li>
+                <li>CCC-SL (following CCC-TFLv2) improves on the Snap-and-Chat construction <a id="footnote-reference-10" class="footnote_reference" href="#ebb-and-flow">7</a> by eliminating the need for transaction-log sanitization and by implementing bounded availability.</li>
+                <li>The cross-referencing design of CCC-SL enables each chain to provide objective validity checks on the other, strengthening the security of the hybrid construction.</li>
+            </ul>
+        </section>
+        <section id="requirements"><h2><span class="section-heading">Requirements</span><span class="section-anchor"> <a rel="bookmark" href="#requirements"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>CCC-SL MUST satisfy:</p>
+            <ul>
+                <li><strong>Crosslink Finality</strong>: If both subprotocols satisfy their safety assumptions, the locally finalized chain of any two honest nodes must be consistent — neither node's locally finalized chain can conflict with the other's.</li>
+                <li><strong>Local Finalization Linearity</strong>: For each honest node, the locally finalized chain is monotonically non-decreasing: it only ever advances forward, never rolls back.</li>
+                <li><strong>Prefix Consistency</strong> (inherited from Π<sub>bc</sub>): Two honest nodes' confirmed best-chains must be consistent.</li>
+                <li><strong>Bounded Availability</strong>: The finality depth of any non-stalled bc-block MUST NOT exceed <code>L</code> while honest bc-block producers follow the protocol. (Stalled blocks may exist at finality depth greater than <code>L</code>; the bound applies to transaction-carrying blocks only.) When the finality depth at the chain tip exceeds <code>L</code>, bc-block producers MUST enter Stalled Mode.</li>
+                <li><strong>Objective Validity</strong>: The validity of any bc-block MUST be determinable from the block itself and its ancestors in both chains, with no external context beyond the two chains.</li>
+                <li><strong>Minimal Subprotocol Modification</strong>: The modifications to the PoW and <code>CFP-SL</code> subprotocols SHOULD be as minimal as possible while satisfying the above requirements.</li>
+            </ul>
+        </section>
+        <section id="non-requirements"><h2><span class="section-heading">Non-requirements</span><span class="section-anchor"> <a rel="bookmark" href="#non-requirements"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>The following are out of scope for this ZIP:</p>
+            <ul>
+                <li>The specific BFT algorithm used internally by <code>CFP-SL</code>. This ZIP specifies only the interface requirements (Final Agreement, etc.) that Π<sub>origbft</sub> must satisfy. The CFP-SL specification is a separate ZIP.</li>
+                <li>The staking mechanics, Finalizer registration, delegation, and slashing rules (specified in the RSM-SL-v1 ZIP).</li>
+                <li>Reward distribution between PoW miners and Finalizers (a separate funding ZIP).</li>
+                <li>The specific activation height(s) for the network upgrade.</li>
+            </ul>
+        </section>
+        <section id="specification"><h2><span class="section-heading">Specification</span><span class="section-anchor"> <a rel="bookmark" href="#specification"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <section id="parameters"><h3><span class="section-heading">Parameters</span><span class="section-anchor"> <a rel="bookmark" href="#parameters"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>CCC-SL is parameterized by:</p>
+                <ul>
+                    <li><strong>bc-confirmation-depth</strong> <code>σ ∈ ℕ⁺</code>: the number of bc-block headers included in each bft-block's <code>headers_bc</code> field, representing the depth at which a bc-block is considered confirmed for snapshotting purposes. This is also the default confirmation depth for the locally finalized chain.</li>
+                    <li><strong>Finalization gap bound</strong> <code>L ∈ ℕ⁺</code>, where <code>L</code> is significantly greater than <code>σ</code> (the minimum is <code>L ≥ 2σ</code>): the maximum finality gap before Stalled Mode is enforced.</li>
+                </ul>
+                <p>The precise values of <code>σ</code> and <code>L</code> for Mainnet and Testnet deployment are to be determined through a network upgrade process ZIP, taking into account measured CFP-SL latency and desired time-to-finality targets.</p>
+            </section>
+            <section id="subprotocol-interface-requirements"><h3><span class="section-heading">Subprotocol Interface Requirements</span><span class="section-anchor"> <a rel="bookmark" href="#subprotocol-interface-requirements"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>CCC-SL places the following requirements on Π<sub>origbft</sub> (which is instantiated as <code>CFP-SL</code> in Shielded Labs Crosslink v1):</p>
+                <ul>
+                    <li>Π<sub>origbft</sub> MUST be a protocol with an identified set of blocks forming a DAG with a defined genesis block <code>Origin_bft</code>.</li>
+                    <li>Π<sub>origbft</sub> MUST define a function <code>bftValid(B) → Boolean</code> determining whether a bft-block <code>B</code> is valid in the context of the bft-chain.</li>
+                    <li>Π<sub>origbft</sub> MUST define a function <code>bftLastFinal(B) → BftBlock</code> returning the last bft-block that is "final" in the context of bft-block <code>B</code>, where <code>bftLastFinal(Origin_bft)
+= Origin_bft</code>.</li>
+                    <li>Π<sub>origbft</sub> MUST satisfy <strong>Final Agreement</strong>: in any execution where safety assumptions hold, for all bft-valid blocks <code>C</code> in honest view and all times <code>t</code>, <code>bftLastFinal(C)</code> must be an ancestor of every other bft-valid block that honest nodes have finalized.</li>
+                </ul>
+                <p>CCC-SL places the following requirements on Π<sub>origbc</sub> (the Zcash PoW protocol):</p>
+                <ul>
+                    <li>Π<sub>origbc</sub> MUST be a best-chain protocol with bc-blocks forming a tree rooted at <code>Origin_bc</code>.</li>
+                    <li>Π<sub>origbc</sub> MUST define a fork-choice function selecting the "best chain" among all bc-valid chains known to a node.</li>
+                    <li>Π<sub>origbc</sub> MUST satisfy <strong>Prefix Consistency</strong> (Common Prefix): in any execution where assumptions hold, for any two honest nodes' confirmed chains <code>C1</code> and <code>C2</code>, one is a prefix of the other.</li>
+                </ul>
+            </section>
+            <section id="structural-additions"><h3><span class="section-heading">Structural Additions</span><span class="section-anchor"> <a rel="bookmark" href="#structural-additions"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>CCC-SL extends the block formats of both subprotocols with cross-referencing fields:</p>
+                <dl>
+                    <dt>bc-block structural additions</dt>
+                    <dd>
+                        <p>Each bc-block header MUST include, in addition to all Π<sub>origbc</sub>-block fields:</p>
+                        <ul>
+                            <li><code>context_bft</code>: a hash identifying a bft-block. This commits the bc-block producer to their view of the <code>CFP-SL</code> chain at the time the block was produced. The referenced bft-block MUST be a bft-valid block in the bc-block producer's view at the time of production.</li>
+                        </ul>
+                    </dd>
+                    <dt>bft-proposal structural additions</dt>
+                    <dd>
+                        <p>Each non-genesis bft-proposal MUST include, in addition to all Π<sub>origbft</sub>-proposal fields:</p>
+                        <ul>
+                            <li><code>headers_bc</code>: a sequence of exactly <code>σ</code> bc-block headers (zero-indexed, deepest first, i.e., <code>headers_bc[0]</code> is deepest and <code>headers_bc[σ-1]</code> is the most recent). These headers MUST form a valid chain in Π<sub>bc</sub> (each header's parent hash must match the previous header's hash). The genesis bft-block has <code>headers_bc = null</code>.</li>
+                        </ul>
+                    </dd>
+                    <dt>bft-block structural additions</dt>
+                    <dd>
+                        <p>Each non-genesis bft-block MUST include, in addition to all Π<sub>origbft</sub>-block fields:</p>
+                        <ul>
+                            <li><code>headers_bc</code>: the same sequence of <code>σ</code> bc-block headers as in the corresponding bft-proposal. The genesis bft-block has <code>headers_bc = null</code>.</li>
+                        </ul>
+                    </dd>
+                </dl>
+            </section>
+            <section id="derived-functions"><h3><span class="section-heading">Derived Functions</span><span class="section-anchor"> <a rel="bookmark" href="#derived-functions"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>Based on the structural additions above, define:</p>
+                <dl>
+                    <dt><code>snapshot(B)</code></dt>
+                    <dd>
+                        <p>For a bft-block or bft-proposal <code>B</code>:</p>
+                        <pre>snapshot(B) :=
+  if B.headers_bc == null:
+    Origin_bc
+  else:
+    B.headers_bc[0].truncate_bc(1)</pre>
+                        <p>That is, the bc-block one step before the deepest header in the snapshot, i.e., the bc-block at depth <code>σ+1</code> relative to the tip of the snapshot chain. <a id="footnote-reference-11" class="footnote_reference" href="#note-snapshot">11</a></p>
+                    </dd>
+                    <dt><code>LF(H)</code></dt>
+                    <dd>
+                        <p>For a bc-block <code>H</code>:</p>
+                        <pre>LF(H) := bftLastFinal(H.context_bft)</pre>
+                    </dd>
+                    <dt><code>candidate(H)</code></dt>
+                    <dd>
+                        <p>For a bc-block <code>H</code>:</p>
+                        <pre>candidate(H) := lastCommonAncestor(snapshot(LF(H)), H.truncate_bc(σ))</pre>
+                        <p>When <code>H</code> is the tip of a node's bc-best-chain, <code>candidate(H)</code> gives the candidate finalization point (subject to the local finalization update rule below). It represents the deepest bc-block that both (a) has been snapshotted by the last final bft-block in context, and (b) is at least <code>σ</code> deep in the bc-best-chain.</p>
+                    </dd>
+                </dl>
+            </section>
+            <section id="locally-finalized-chain"><h3><span class="section-heading">Locally Finalized Chain</span><span class="section-anchor"> <a rel="bookmark" href="#locally-finalized-chain"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>Each node <code>i</code> maintains a locally finalized bc-chain <code>localfin_i</code>, initialized at <code>Origin_bc</code>. The chain state MUST NOT be exposed to external clients of the node until the node has synced (see <a href="#syncing-and-checkpoints">Syncing and Checkpoints</a>).</p>
+                <p>When node <code>i</code>'s bc-best-chain view is updated from <code>ch_i(s)</code> to <code>ch_i(t)</code>:</p>
+                <pre>UpdateLocalFin(localfin_i, ch_i(t), s):
+  let N = candidate(ch_i(t))
+  if N is a descendant of localfin_i(s) (i.e., localfin_i(s) ≼ N):
+    localfin_i(t) ← N
+  else:
+    localfin_i(t) ← localfin_i(s)
+    if N conflicts with localfin_i(s) (i.e., neither is a prefix of the other):
+      record a finalization safety hazard</pre>
+                <p>A finalization safety hazard record SHOULD include <code>ch_i(t)</code> and the history of <code>localfin_i</code> updates including and since the last update that was an ancestor of <code>N</code>.</p>
+                <p><strong>Lemma (Local Finalization Linearity)</strong>: The time series of bc-blocks <code>localfin_i(t)</code> for any honest node <code>i</code> is bc-linear: for all times <code>s ≤ t</code>, <code>localfin_i(s) ≼_bc localfin_i(t)</code>.</p>
+                <p><em>Proof</em>: By the update rule, <code>localfin_i(t)</code> is either <code>localfin_i(s)</code> or a descendant of it, never a conflicting chain or an ancestor.</p>
+                <p><strong>Lemma (Local Fin-Depth)</strong>: For any honest node <code>i</code> at time <code>t</code>, there exists a time <code>r ≤ t</code> such that <code>localfin_i(t) ≼_bc ch_i(r).truncate_bc(σ)</code>.</p>
+                <p><em>Proof</em>: By definition of <code>candidate</code>, <code>candidate(H) ≼ H.truncate_bc(σ)</code> for all bc-blocks <code>H</code>. Let <code>r ≤ t</code> be the last time <code>localfin_i(t)</code> changed, or genesis time <code>0</code> if it has never changed.</p>
+            </section>
+            <section id="locally-bounded-available-chain"><h3><span class="section-heading">Locally Bounded-Available Chain</span><span class="section-anchor"> <a rel="bookmark" href="#locally-bounded-available-chain"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>Each node <code>i</code> chooses a bounded-availability depth <code>μ</code> where <code>0 &lt; μ ≤ σ</code>. The locally bounded-available chain is:</p>
+                <pre>localba(μ)_i(t) := ch_i(t).truncate_bc(μ)</pre>
+                <aside class="warning">Choosing <code>μ &lt; σ</code> is at the node's own risk and may increase susceptibility to rollback attacks. The default SHOULD be <code>μ = σ</code>.</aside>
+            </section>
+            <section id="syncing-and-checkpoints"><h3><span class="section-heading">Syncing and Checkpoints</span><span class="section-anchor"> <a rel="bookmark" href="#syncing-and-checkpoints"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>When a node first syncs or re-syncs, the locally finalized chain state MUST NOT be exposed to external clients until the node has processed the full bc-chain and bft-chain up to a recent point. The node MAY use checkpoints embedded in the software (committing to a known bc-block and bft-block at a given height) to accelerate syncing.</p>
+                <p>Checkpoints MUST be chosen conservatively to avoid committing to blocks that could be reorganized or that have not been finalized by <code>CFP-SL</code>. A checkpoint at bc-height <code>h</code> SHOULD only be used if <code>CFP-SL</code> has finalized bc-blocks up to height <code>h - σ</code> or deeper.</p>
+            </section>
+            <section id="bft-cfp-sl-changes-from-origbft">
+                <h3>Π<sub>bft</sub> (CFP-SL) Changes from Π<sub>origbft</sub></h3>
+                <dl>
+                    <dt>BFT block and proposal validity</dt>
+                    <dd>
+                        <p>In addition to Π<sub>origbft</sub> validity rules, a bft-proposal <code>P</code> is bft-valid only if:</p>
+                        <ol type="1">
+                            <li><code>P.headers_bc</code> is a sequence of exactly <code>σ</code> bc-block headers forming a valid bc-chain (headers are correctly linked by parent hashes and each satisfies the bc-block header validity rules, including proof-of-work and difficulty adjustment).</li>
+                            <li>For each header <code>h</code> in <code>P.headers_bc</code>, the proof-of-work MUST be valid (checking this requires only the headers, enabling DoS mitigation).</li>
+                            <li><code>P.headers_bc[σ-1]</code> (the most recent header) MUST be at block height at least as great as the snapshot committed to in the bft-parent of <code>P</code>, to prevent proposers from referencing stale bc-chain snapshots.</li>
+                            <li>The bc-chain committed to by <code>P.headers_bc</code> MUST be consistent with (i.e., a descendant of) the snapshot committed to in the bft-parent of <code>P</code>.</li>
+                        </ol>
+                    </dd>
+                    <dt>BFT honest proposal rule (CFP-SL)</dt>
+                    <dd>An honest CFP-SL Finalizer proposing a bft-block at time <code>t</code> MUST set <code>headers_bc</code> to the sequence of the most recent <code>σ</code> bc-block headers in the node's bc-best-chain at time <code>t</code>. The Finalizer MUST only propose if they have a bc-best-chain that is at least <code>σ</code> blocks deep.</dd>
+                    <dt>BFT honest voting rule (CFP-SL)</dt>
+                    <dd>
+                        <p>An honest CFP-SL Finalizer voting on a bft-proposal <code>P</code> MUST verify that <code>P.headers_bc</code> satisfies the proposal validity rules above. In particular, it MUST verify proof-of-work for all headers in <code>P.headers_bc</code> before accepting the proposal.</p>
+                        <p>If <code>P.headers_bc</code> connects to the Finalizer's known bc-chain, the Finalizer SHOULD download and fully validate any bc-blocks it has not yet seen before voting. If the headers do not connect to any known bc-chain, the Finalizer SHOULD assign lower priority to validating the proposal (to limit DoS exposure) and MAY drop it.</p>
+                    </dd>
+                </dl>
+            </section>
+            <section id="bc-zcash-pow-changes-from-origbc">
+                <h3>Π<sub>bc</sub> (Zcash PoW) Changes from Π<sub>origbc</sub></h3>
+                <dl>
+                    <dt>BC block validity (structural)</dt>
+                    <dd>
+                        <p>In addition to Π<sub>origbc</sub> validity rules, a bc-block <code>H</code> is bc-valid only if:</p>
+                        <ol type="1">
+                            <li><code>H.context_bft</code> is a hash identifying a bft-valid block in Π<sub>bft</sub>.</li>
+                            <li><code>H.context_bft</code> refers to a bft-block that is an ancestor of, or equal to, the bft-block referred to by <code>H</code>'s bc-parent's <code>context_bft</code> field. (Context can only move forward in the bft-chain.)</li>
+                        </ol>
+                    </dd>
+                    <dt>BC contextual validity (finality gap)</dt>
+                    <dd>
+                        <p>A bc-block <code>H</code> is contextually valid only if the finality gap constraint is satisfied. Let <code>fin_height(H)</code> be the bc-height of <code>candidate(H)</code> and <code>tip_height(H)</code> be the bc-height of <code>H</code>. The finality gap is <code>tip_height(H) - fin_height(H)</code>.</p>
+                        <p>If the finality gap at <code>H</code> exceeds <code>L</code>, then <code>H</code> MUST be a stalled block (i.e., <code>isStalledBlock(H)</code> MUST return <code>true</code>).</p>
+                    </dd>
+                    <dt>BC honest block production</dt>
+                    <dd>
+                        <p>An honest bc-block producer creating bc-block <code>H</code> at time <code>t</code> MUST:</p>
+                        <ol type="1">
+                            <li>Set <code>H.context_bft</code> to the hash of the most recent bft-valid block in the producer's CFP-SL node view at time <code>t</code>.</li>
+                            <li>Check the finality gap: if the finality gap would exceed <code>L</code> for the new block, the producer MUST apply the stalled-block policy.</li>
+                            <li>Not include <code>H.context_bft</code> referencing a bft-block whose <code>headers_bc[σ-1]</code> refers to a bc-block that is not a prefix of <code>H</code>'s bc-ancestor chain (consistency check).</li>
+                        </ol>
+                    </dd>
+                </dl>
+            </section>
+            <section id="stalled-mode-policy"><h3><span class="section-heading">Stalled Mode Policy</span><span class="section-anchor"> <a rel="bookmark" href="#stalled-mode-policy"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>The stalled-block predicate <code>isStalledBlock(H) → Boolean</code> determines whether a bc-block is a stalled block. The specific definition of <code>isStalledBlock</code> for the Zcash deployment is deferred to a subsequent consensus ZIP, but MUST satisfy:</p>
+                <ol type="1">
+                    <li>A stalled block MUST NOT include transactions that spend outputs created in bc-blocks that are not in the locally finalized chain (i.e., unfinalized outputs). This prevents users from having their funds locked in a deep unfinalized zone.</li>
+                    <li>A stalled block MAY include coinbase transactions for miner rewards.</li>
+                    <li>The validity of <code>isStalledBlock(H)</code> MUST be objectively determinable from <code>H</code> and its bc-ancestors (it requires no external state beyond the chain).</li>
+                    <li>Nodes MUST enforce the stalled block policy: a non-stalled block with a finality gap exceeding <code>L</code> MUST be rejected as bc-invalid.</li>
+                </ol>
+                <section id="open-questions"><h4><span class="section-heading">Open questions</span><span class="section-anchor"> <a rel="bookmark" href="#open-questions"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h4>
+                    <ul>
+                        <li>Should stalled blocks be permitted to include transactions spending finalized outputs only, or should they be entirely empty of user transactions? The tradeoff is between some throughput during a stall versus specification simplicity.</li>
+                        <li>What is the correct definition of "unfinalized outputs" in the context of Zcash shielded transactions, where output ownership is not publicly visible?</li>
+                    </ul>
+                    <p>TODO: Define the specific encoding of <code>context_bft</code> in Zcash block headers, including the exact byte representation of the bft-block hash reference.</p>
+                    <p>TODO: Define the specific encoding of <code>headers_bc</code> in bft-proposals and bft-blocks, including the exact byte layout.</p>
+                    <p>TODO: Specify the precise values of <code>σ</code> and <code>L</code> for Mainnet and Testnet.</p>
+                </section>
+            </section>
+            <section id="security-analysis"><h3><span class="section-heading">Security Analysis</span><span class="section-anchor"> <a rel="bookmark" href="#security-analysis"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>The following properties are claimed for CCC-SL under the stated assumptions.</p>
+                <section id="crosslink-finality"><h4><span class="section-heading">Crosslink Finality</span><span class="section-anchor"> <a rel="bookmark" href="#crosslink-finality"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h4>
+                    <p><strong>Property</strong>: If <code>CFP-SL</code> satisfies Final Agreement and the Zcash PoW protocol satisfies Prefix Consistency, then for any two honest nodes <code>i</code> and <code>j</code> at any times <code>t</code> and <code>u</code>, their locally finalized chains are consistent: either <code>localfin_i(t) ≼_bc localfin_j(u)</code> or <code>localfin_j(u) ≼_bc localfin_i(t)</code>.</p>
+                    <p><em>Proof sketch</em>: By the <code>UpdateLocalFin</code> rule, <code>localfin_i(t)</code> is always equal to <code>candidate(ch_i(r))</code> for some time <code>r ≤ t</code>. By the definition of <code>candidate</code>, this is the last common ancestor of <code>snapshot(LF(ch_i(r)))</code> and <code>ch_i(r).truncate_bc(σ)</code>.</p>
+                    <p>By Final Agreement of <code>CFP-SL</code>, <code>LF(ch_i(r))</code> and <code>LF(ch_j(s))</code> (for any two honest nodes and times) must be consistent: one is an ancestor of the other in the bft-chain. By the monotonic inclusion of snapshots in bft-ancestor chains and Prefix Consistency of the PoW protocol, <code>candidate(ch_i(r))</code> and <code>candidate(ch_j(s))</code> are consistent bc-blocks. Since both <code>localfin_i(t)</code> and <code>localfin_j(u)</code> are derived from <code>candidate</code> values of consistent finalization points and consistent bc-chains, they must be consistent.</p>
+                </section>
+                <section id="bounded-availability"><h4><span class="section-heading">Bounded Availability</span><span class="section-anchor"> <a rel="bookmark" href="#bounded-availability"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h4>
+                    <p><strong>Property</strong>: If all honest bc-block producers follow the stalled-block policy, then every non-stalled bc-block accepted by honest full nodes has finality depth at most <code>L</code>. (Stalled blocks may have finality depth greater than <code>L</code>; the bound applies only to transaction-carrying, non-stalled blocks.)</p>
+                    <p><em>Proof sketch</em>: By the BC contextual validity rule, a bc-block whose finality gap exceeds <code>L</code> that is not a stalled block is rejected as bc-invalid. Since honest bc-block producers only produce stalled blocks when the gap would exceed <code>L</code>, and honest full nodes reject non-stalled blocks with <code>tip_height(H) - fin_height(H) &gt; L</code>, all non-stalled blocks in any honest full node's view of the bc-chain satisfy <code>tip_height(H) - fin_height(H) ≤ L</code>. Stalled blocks may accumulate arbitrarily, but they do not carry new unfinalized-output-spending transactions, so the set of pending unfinalized user transactions is bounded.</p>
+                </section>
+                <section id="resilience-of-finality-to-pow-reorgs"><h4><span class="section-heading">Resilience of Finality to PoW Reorgs</span><span class="section-anchor"> <a rel="bookmark" href="#resilience-of-finality-to-pow-reorgs"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h4>
+                    <p><strong>Property</strong>: A rollback of the bc-best-chain shorter than <code>σ</code> blocks does not cause the locally finalized chain to roll back.</p>
+                    <p><em>Proof sketch</em>: The candidate finalization point <code>candidate(H)</code> for a chain tip <code>H</code> is at depth <code>σ</code> or deeper in the bc-chain (by the Local Fin-Depth lemma). A reorg of fewer than <code>σ</code> blocks cannot affect the bc-block at depth <code>σ</code>. Furthermore, the <code>UpdateLocalFin</code> rule only advances the locally finalized chain, never rolling it back.</p>
+                </section>
+            </section>
+        </section>
+        <section id="reference-implementation"><h2><span class="section-heading">Reference Implementation</span><span class="section-anchor"> <a rel="bookmark" href="#reference-implementation"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>A prototype implementation of CCC-SL is being developed in the <code>zebra-crosslink</code> component of <a id="footnote-reference-12" class="footnote_reference" href="#zebra-crosslink">8</a> and integrated in the <code>crosslink_monolith</code> repository <a id="footnote-reference-13" class="footnote_reference" href="#crosslink-monolith">9</a>. These implementations are experimental and should not be used in production.</p>
+            <p>Reference documentation for CCC-SL's theoretical foundations is available in the Zcash TFL design book <a id="footnote-reference-14" class="footnote_reference" href="#tfl-book">6</a>, specifically the "Crosslink 2 Construction" chapter (which corresponds to CCC-TFLv2, the basis for CCC-SL).</p>
+        </section>
+        <section id="references"><h2><span class="section-heading">References</span><span class="section-anchor"> <a rel="bookmark" href="#references"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <table id="bcp14" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>1</th>
+                        <td><a href="https://www.rfc-editor.org/info/bcp14">Information on BCP 14 — "RFC 2119: Key words for use in RFCs to Indicate Requirement Levels" and "RFC 8174: Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words"</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="protocol" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>2</th>
+                        <td><a href="protocol/protocol.pdf">Zcash Protocol Specification, Version 2022.3.8 or later</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="protocol-networks" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>3</th>
+                        <td><a href="protocol/protocol.pdf#networks">Zcash Protocol Specification, Version 2022.3.8. Section 3.12: Mainnet and Testnet</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="zip-0200" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>4</th>
+                        <td><a href="zip-0200">ZIP 200: Network Upgrade Mechanism</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="zip-crosslink-overview" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>5</th>
+                        <td><a href="draft-shieldedlabs-crosslink-overview">ZIP [Unassigned]: Shielded Labs Crosslink v1: Protocol Overview and Architecture</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="tfl-book" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>6</th>
+                        <td><a href="https://electric-coin-company.github.io/tfl-book/design/crosslink/construction.html">Zcash Trailing Finality Layer Design Book — The Crosslink 2 Construction</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="ebb-and-flow" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>7</th>
+                        <td><a href="https://eprint.iacr.org/2020/1091.pdf">Ebb-and-Flow Protocols: A Resolution of the Availability-Finality Dilemma. David Neu, Joachim Neu, Ertem Nusret Tas, David Tse.</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="zebra-crosslink" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>8</th>
+                        <td><a href="https://github.com/ShieldedLabs/zebra-crosslink">ShieldedLabs zebra-crosslink repository</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="crosslink-monolith" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>9</th>
+                        <td><a href="https://github.com/ShieldedLabs/crosslink_monolith">ShieldedLabs crosslink_monolith repository</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="zebra-crosslink-terminology" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>10</th>
+                        <td><a href="https://github.com/ShieldedLabs/zebra-crosslink/blob/main/book/src/design/terminology.md">Shielded Labs zebra-crosslink design book: Terminology</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="note-snapshot" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>11</th>
+                        <td>The snapshot function returns the bc-block at depth 1 from the deepest header, i.e., the parent of <code>headers_bc[0]</code>. This means the snapshot is a bc-block at depth <code>σ+1</code> relative to the tip of the snapshotted chain. This ensures that a bft-block referring to a snapshot provides evidence (via the <code>σ</code> headers) that the snapshot was confirmed at the time of the proposal.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </section>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Draft shieldedlabs-crosslink-ledger-state: RSM-SL-v1: Crosslink Ledger State and Ledger Mutations</title>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="css/style.css"></head>
+<body>
+    <section>
+        <pre>ZIP: Unassigned {numbers are assigned by ZIP editors}
+Title: RSM-SL-v1: Crosslink Ledger State and Ledger Mutations
+Owners: Nate Wilcox &lt;nate@shieldedlabs.com&gt;
+Credits: Daira-Emma Hopwood
+         Jack Grigg
+         Kris Nuttycombe
+Status: Draft
+Category: Consensus
+Created: 2026-06-03
+License: MIT
+Discussions-To: TBD (no specific discussion thread yet)</pre>
+        <section id="terminology"><h2><span class="section-heading">Terminology</span><span class="section-anchor"> <a rel="bookmark" href="#terminology"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>The key words "MUST", "MUST NOT", "SHOULD", "SHOULD NOT", and "MAY" in this text are to be interpreted as described in BCP 14 <a id="footnote-reference-1" class="footnote_reference" href="#bcp14">1</a> when, and only when, they appear in all capitals.</p>
+            <p>The terms "Mainnet" and "Testnet" in this document are to be interpreted as defined in the Zcash protocol specification <a id="footnote-reference-2" class="footnote_reference" href="#protocol-networks">3</a>.</p>
+            <p>The terms below are to be interpreted as follows:</p>
+            <dl>
+                <dt>RSM-SL-v1</dt>
+                <dd>The Shielded Labs v1 instantiation of the roster state module referenced by the Crosslink Overview ZIP <a id="footnote-reference-3" class="footnote_reference" href="#zip-crosslink-overview">6</a>.</dd>
+                <dt>Idealized ledger state</dt>
+                <dd>A point-in-time abstract data structure used for specification and consensus reasoning. Implementations MAY use equivalent internal layouts, but MUST produce exactly the same externally verifiable state transitions as if they had updated this idealized structure directly.</dd>
+                <dt>Bond</dt>
+                <dd>A delegated ZEC amount associated with a Finalizer identifier and tracked by this specification's ledger state rules.</dd>
+                <dt>Candidate Roster</dt>
+                <dd>A deterministic mapping from Finalizer identifiers to voting weights, computed by summing all currently effective bonds for each Finalizer.</dd>
+                <dt>Active Finalizer set</dt>
+                <dd>The top <code>K</code> Finalizers by voting weight in the Candidate Roster, where <code>K = 100</code>.</dd>
+                <dt>Most-recent-final ancestor</dt>
+                <dd>For any PoW tip block, the unique most recent ancestor on that tip's chain that is finalized under CCC-SL <a id="footnote-reference-4" class="footnote_reference" href="#zip-ccc-sl">5</a>.</dd>
+            </dl>
+        </section>
+        <section id="abstract"><h2><span class="section-heading">Abstract</span><span class="section-anchor"> <a rel="bookmark" href="#abstract"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>This ZIP specifies the Crosslink ledger-state changes required by RSM-SL-v1. It defines the idealized point-in-time ledger state extension, and the ledger mutation rules that update this state, including issuance distribution and roster mutations.</p>
+            <p>The specification is layered:</p>
+            <ul>
+                <li>abstract Proof-of-Stake actions over ledger state, and</li>
+                <li>concrete consensus extensions to Zcash transaction fields and semantics.</li>
+            </ul>
+        </section>
+        <section id="motivation"><h2><span class="section-heading">Motivation</span><span class="section-anchor"> <a rel="bookmark" href="#motivation"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>The Crosslink Overview ZIP defines RSM-SL-v1 conceptually but leaves the consensus state and mutation details to a companion specification. Nodes need a single, deterministic definition of:</p>
+            <ul>
+                <li>how Finalizer voting weights are derived from on-chain bonds,</li>
+                <li>how the active BFT roster is selected, and</li>
+                <li>how roster-related state evolves as blocks are applied and reverted.</li>
+            </ul>
+            <p>Without this ZIP, implementations may diverge on ledger state interpretation, producing incompatible active rosters and finality inputs.</p>
+        </section>
+        <section id="requirements"><h2><span class="section-heading">Requirements</span><span class="section-anchor"> <a rel="bookmark" href="#requirements"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>This ZIP MUST specify the following:</p>
+            <ul>
+                <li>An idealized ledger state extension over the existing Zcash ledger state, including bonds, Finalizer identifiers, and cryptographic material needed for self-authenticating roster membership.</li>
+                <li>Candidate Roster construction by summing currently effective bonds per Finalizer, and Active Finalizer set selection as the top <code>K = 100</code> by voting weight.</li>
+                <li>Dual-state interpretation in which ledger processing distinguishes finalized state from tip state, with each tip having an objectively verifiable most-recent-final ancestor.</li>
+                <li>Ledger mutation rules for issuance distribution and roster mutations.</li>
+                <li>A two-layer mutation definition:
+                    <ol type="1">
+                        <li>abstract PoS actions, and</li>
+                        <li>concrete Zcash transaction-field and transaction-semantic extensions.</li>
+                    </ol>
+                </li>
+            </ul>
+        </section>
+        <section id="non-requirements"><h2><span class="section-heading">Non-requirements</span><span class="section-anchor"> <a rel="bookmark" href="#non-requirements"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>The following are out of scope for this ZIP:</p>
+            <ul>
+                <li>Pre-existing Zcash ledger state, except where it is extended or requires new considerations due to Crosslink.</li>
+                <li>The Crosslink mechanism itself (including chain selection and finality-status verification), specified in CCC-SL <a id="footnote-reference-5" class="footnote_reference" href="#zip-ccc-sl">5</a>.</li>
+                <li>Internal BFT protocol design, except that the Active Finalizer set is an input provided by this ZIP.</li>
+                <li>Networking behavior outside transaction format and transaction semantics.</li>
+                <li>Topics designated as separate ZIPs in the Crosslink overview <a id="footnote-reference-6" class="footnote_reference" href="#zip-crosslink-overview">6</a>.</li>
+            </ul>
+        </section>
+        <section id="specification"><h2><span class="section-heading">Specification</span><span class="section-anchor"> <a rel="bookmark" href="#specification"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <section id="idealized-ledger-state-extension"><h3><span class="section-heading">Idealized Ledger State Extension</span><span class="section-anchor"> <a rel="bookmark" href="#idealized-ledger-state-extension"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>Let <code>S_zec</code> denote the existing Zcash ledger state. This ZIP defines an extended idealized state <code>S_xl</code> that behaves as:</p>
+                <ul>
+                    <li><code>S_xl = (S_zec, S_roster, S_finality_views, S_issuance)</code>.</li>
+                    <li><code>S_roster</code> includes at minimum:
+                        <ul>
+                            <li>bond records keyed by bond identifier,</li>
+                            <li>Finalizer identity records,</li>
+                            <li>cryptographic verification keys and status metadata,</li>
+                            <li>deterministic activation/deactivation metadata needed for roster computation.</li>
+                        </ul>
+                    </li>
+                    <li><code>S_finality_views</code> tracks finalized and tip-relative views so that, for each accepted tip, the corresponding most-recent-final ancestor is objectively derivable from block data and finalized commitments.</li>
+                    <li><code>S_issuance</code> tracks distribution state required to apply issuance rules that involve Finalizers.</li>
+                </ul>
+                <p>Consensus behavior MUST be equivalent to transitions over <code>S_xl</code> even when an implementation does not materialize <code>S_xl</code> as one in-memory object.</p>
+            </section>
+            <section id="candidate-roster-and-active-finalizers"><h3><span class="section-heading">Candidate Roster and Active Finalizers</span><span class="section-anchor"> <a rel="bookmark" href="#candidate-roster-and-active-finalizers"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>For each state <code>S_xl</code> at a given chain point:</p>
+                <ul>
+                    <li>Candidate voting weight for Finalizer <code>f</code> is the sum of all currently effective bond amounts targeting <code>f</code>.</li>
+                    <li>Candidate Roster computation MUST be deterministic for every honest node given the same chain history.</li>
+                    <li>The Active Finalizer set is the top <code>K = 100</code> Finalizers by candidate voting weight.</li>
+                    <li>Tie-breaking for equal weights MUST be deterministic and based only on consensus-visible data.</li>
+                    <li>The active roster output MUST be suitable as an input to CFP-SL voting-weight selection.</li>
+                </ul>
+            </section>
+            <section id="finalized-and-tip-state-relationship"><h3><span class="section-heading">Finalized and Tip State Relationship</span><span class="section-anchor"> <a rel="bookmark" href="#finalized-and-tip-state-relationship"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>Ledger processing MUST expose both:</p>
+                <ul>
+                    <li>a finalized state view anchored at finalized history, and</li>
+                    <li>a tip state view for each accepted PoW tip.</li>
+                </ul>
+                <p>For every accepted tip, nodes MUST be able to derive an objectively verifiable most-recent-final ancestor from consensus data. Reorganizations MUST preserve this invariant and recompute dependent tip state deterministically.</p>
+            </section>
+            <section id="ledger-mutations-abstract-action-layer"><h3><span class="section-heading">Ledger Mutations: Abstract Action Layer</span><span class="section-anchor"> <a rel="bookmark" href="#ledger-mutations-abstract-action-layer"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>This ZIP defines abstract actions that mutate <code>S_xl</code>:</p>
+                <ul>
+                    <li><code>BondCreate</code>: create a bond linking stake to a Finalizer identifier.</li>
+                    <li><code>BondAdjust</code>: increase or decrease an existing bond according to consensus constraints.</li>
+                    <li><code>BondDeactivate</code>: transition stake out of active weighting, including unbonding behavior.</li>
+                    <li><code>FinalizerRegister</code> and <code>FinalizerUpdate</code>: manage Finalizer identity and associated cryptographic keys.</li>
+                    <li><code>FinalizerDeactivate</code>: remove a Finalizer from future roster eligibility.</li>
+                    <li><code>Slash</code>: apply deterministic penalties for provable misbehavior.</li>
+                    <li><code>DistributeIssuance</code>: apply issuance distribution updates affecting miner and Finalizer-related allocation state.</li>
+                </ul>
+                <p>Each action MUST define preconditions, state transition effects, and reversion behavior under chain rollback.</p>
+            </section>
+            <section id="ledger-mutations-concrete-zcash-transaction-semantics"><h3><span class="section-heading">Ledger Mutations: Concrete Zcash Transaction Semantics</span><span class="section-anchor"> <a rel="bookmark" href="#ledger-mutations-concrete-zcash-transaction-semantics"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>Consensus transaction rules are extended so that specific transaction patterns encode the abstract actions above. This layer MUST define:</p>
+                <ul>
+                    <li>the concrete transaction fields and encodings used for roster-related actions,</li>
+                    <li>validity checks for signatures, authorization, and amount constraints,</li>
+                    <li>ordering and interaction rules when multiple roster actions appear in one block,</li>
+                    <li>rejection behavior for malformed, unauthorized, or semantically conflicting actions.</li>
+                </ul>
+                <p>Applying a valid block MUST induce exactly the same abstract action sequence on <code>S_xl</code> at all honest nodes.</p>
+            </section>
+            <section id="issuance-distribution-and-roster-interaction"><h3><span class="section-heading">Issuance Distribution and Roster Interaction</span><span class="section-anchor"> <a rel="bookmark" href="#issuance-distribution-and-roster-interaction"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h3>
+                <p>Issuance distribution rules covered by this ZIP MUST specify:</p>
+                <ul>
+                    <li>which issuance components are affected by roster/finalizer state,</li>
+                    <li>when issuance state updates occur relative to other per-block mutations, and</li>
+                    <li>deterministic accounting behavior under normal progression and reorgs.</li>
+                </ul>
+                <p>Detailed policy values (for example, exact allocation percentages) MAY be set by separate process or funding ZIPs, but this ZIP defines the consensus state transition hooks that enforce whichever policy is activated.</p>
+            </section>
+        </section>
+        <section id="rationale"><h2><span class="section-heading">Rationale</span><span class="section-anchor"> <a rel="bookmark" href="#rationale"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>Separating this specification from CCC-SL keeps concerns modular:</p>
+            <ul>
+                <li>CCC-SL specifies the hybrid-consensus construction and finality properties.</li>
+                <li>This ZIP specifies the ledger-state machine that supplies active roster input and applies roster-related mutations inside Zcash consensus processing.</li>
+            </ul>
+            <p>This split keeps each ZIP auditable while preserving deterministic integration.</p>
+        </section>
+        <section id="deployment"><h2><span class="section-heading">Deployment</span><span class="section-anchor"> <a rel="bookmark" href="#deployment"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>This ZIP is intended to activate through the Zcash network-upgrade mechanism <a id="footnote-reference-7" class="footnote_reference" href="#zip-0200">4</a> alongside the other required Crosslink ZIPs.</p>
+        </section>
+        <section id="reference-implementation"><h2><span class="section-heading">Reference Implementation</span><span class="section-anchor"> <a rel="bookmark" href="#reference-implementation"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <p>A prototype implementation is under development in the Shielded Labs <code>zebra-crosslink</code> and <code>crosslink_monolith</code> repositories, referenced from ZIP <a id="footnote-reference-8" class="footnote_reference" href="#zip-crosslink-overview">6</a>.</p>
+        </section>
+        <section id="references"><h2><span class="section-heading">References</span><span class="section-anchor"> <a rel="bookmark" href="#references"><img width="24" height="24" class="section-anchor" src="assets/images/section-anchor.png" alt=""></a></span></h2>
+            <table id="bcp14" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>1</th>
+                        <td><a href="https://www.rfc-editor.org/info/bcp14">Information on BCP 14 — "RFC 2119: Key words for use in RFCs to Indicate Requirement Levels" and "RFC 8174: Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words"</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="protocol" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>2</th>
+                        <td><a href="protocol/protocol.pdf">Zcash Protocol Specification, Version 2022.3.8 or later</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="protocol-networks" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>3</th>
+                        <td><a href="protocol/protocol.pdf#networks">Zcash Protocol Specification, Version 2022.3.8. Section 3.12: Mainnet and Testnet</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="zip-0200" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>4</th>
+                        <td><a href="zip-0200">ZIP 200: Network Upgrade Mechanism</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="zip-ccc-sl" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>5</th>
+                        <td><a href="draft-shieldedlabs-crosslink-construction">ZIP [Unassigned]: CCC-SL: Crosslink Consensus Construction from Shielded Labs</a></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="zip-crosslink-overview" class="footnote">
+                <tbody>
+                    <tr>
+                        <th>6</th>
+                        <td><a href="draft-shieldedlabs-crosslink-overview">ZIP [Unassigned]: Shielded Labs Crosslink v1: Protocol Overview and Architecture</a></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </section>
+</body>
+</html>
