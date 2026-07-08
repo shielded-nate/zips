@@ -18,7 +18,7 @@ function main
   local to_render
   to_render="$(get-current-branch '!=')"
 
-  switch-to-pages-branch
+  switch-to-pages-branch "$to_render"
   commit-spliced-merge "$to_render"
   render-latest-branch "$to_render"
   generate-index > "$PAGES_INDEX"
@@ -76,16 +76,18 @@ function get-current-branch
 
 function switch-to-pages-branch
 {
-  [[ $# -eq 0 ]]
+  [[ $# -eq 1 ]] && local to_render="$1"
 
   if ! git switch "$PAGES_BRANCH" 2> /dev/null
   then
-    initialize-pages-branch
+    initialize-pages-branch "$to_render"
   fi
 }
 
 function initialize-pages-branch
 {
+  [[ $# -eq 1 ]] && local to_render="$1"
+
   git switch --orphan "$PAGES_BRANCH"
   mkdir "$PAGES_DIR"
 
@@ -99,14 +101,17 @@ function initialize-pages-branch
     </html>
 __EOF
 
-  git restore --source='main' \
+  git restore --source="$to_render" \
     --staged --worktree \
     -- .gitignore
 
-  git add "$PAGES_INDEX" .gitignore
+  touch .nojekyll
+
+  git add "$PAGES_INDEX" .gitignore .nojekyll
   git commit -m "initial \"$PAGES_BRANCH\" stub"
 
   # Give the user an understanding of the stub:
+  git-show-tip
 }
 
 function commit-spliced-merge
