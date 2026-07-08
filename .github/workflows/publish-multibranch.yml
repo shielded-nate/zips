@@ -48,7 +48,10 @@ jobs:
           fetch-depth: 0
 
       - name: Render `${{ github.ref }}` to `gh-pages`
-        run: nix develop -c .github/scripts/multi-branch-render.sh
+        run: |
+          git config user.name 'github_actions'
+          git config user.email 'actions@github.com'
+          nix develop -c .github/scripts/multi-branch-render.sh
 
       - name: Push to `gh-pages`
         run: git push origin gh-pages:gh-pages
